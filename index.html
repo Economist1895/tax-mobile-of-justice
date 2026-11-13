@@ -156,9 +156,9 @@
         <div class="who">Ryan Li <span class="badge normal">NORMAL</span></div>
         <div class="rank">Manager · recommended for first-timers</div>
         <ul>
-          <li>Suspects drive at normal speed</li>
-          <li>Start with 2 Notices, carry up to 5</li>
-          <li>Each Notice hit fills 40% of the ring</li>
+          <li>Slower suspects, more time per case</li>
+          <li>Start with 3 Notices, carry up to 5</li>
+          <li>Each Notice hit fills half the ring</li>
           <li>Standard PG targets</li>
         </ul>
       </button>
@@ -166,8 +166,8 @@
         <div class="who">Kaspar Chen <span class="badge hard">HARD</span></div>
         <div class="rank">Senior Manager · bigger cases, bigger KPIs</div>
         <ul>
-          <li>Suspects 15% faster, less time per case</li>
-          <li>Start with 1 Notice, carry up to 3</li>
+          <li>Faster suspects, less time per case</li>
+          <li>Start with 2 Notices, carry up to 3</li>
           <li>Each Notice hit fills 70%, so aim carefully</li>
           <li>Senior Manager KPIs: higher PG targets</li>
         </ul>
@@ -221,14 +221,14 @@
   'use strict';
   // ================= Settings =================
   const ROUND_TIME = 60;        // seconds per shift
-  const CATCH_R = 120;          // stay this close to fill the gold ring
+  const CATCH_R = 140;          // stay this close to fill the gold ring
   const NOTICE_COOLDOWN = 0.6;  // seconds between Notices
   const STREAK_WINDOW = 12;     // catch again within this many seconds to build a streak
 
   // ================= Officers (game modes) =================
   const MODES = {
     ryan: { name: 'Ryan Li', rank: 'Manager', color: '#1f4e9c', boss: 'Supervisor',
-      startNotices: 2, maxNotices: 5, hit: 0.4, spdMul: 1, caseTime: 20,
+      startNotices: 3, maxNotices: 5, hit: 0.5, spdMul: 0.85, caseTime: 25,
       pg: [130000, 300000, 500000, 750000],
       remarks: [
         'Ryan Li spent most of the shift looking for parking. Please see HR, and bring supporting documents.',
@@ -237,7 +237,7 @@
         'Strong showing. Ryan Li is reminded that Revenue House is not a drive-through.',
         'Exceptional. Recommend promotion, a commendation, and permission to finally switch on the aircon in GST 009.'] },
     kaspar: { name: 'Kaspar Chen', rank: 'Senior Manager', color: '#6a3fa0', boss: 'Director',
-      startNotices: 1, maxNotices: 3, hit: 0.7, spdMul: 1.15, caseTime: 16,
+      startNotices: 2, maxNotices: 3, hit: 0.7, spdMul: 1, caseTime: 19,
       pg: [200000, 450000, 750000, 1100000],
       remarks: [
         'Kaspar Chen is reminded that \u201Cdelegating to Ryan\u201D is not an investigation strategy.',
@@ -248,7 +248,7 @@
   };
   let mode = MODES.ryan;
 
-  const T = 100, BLOCK = 5, NODES = 7, GRID = (NODES - 1) * BLOCK + 1, WORLD = GRID * T;
+  const T = 100, BLOCK = 4, NODES = 6, GRID = (NODES - 1) * BLOCK + 1, WORLD = GRID * T;
   const INK = '#1b2333', PAPER = '#f7f1e3', RED = '#d23a2f', GOLD = '#f2b705', BLUE = '#1f4e9c';
   const UI = 'Inter, "Segoe UI", system-ui, sans-serif', DISPLAY = 'Fraunces, Georgia, serif';
 
@@ -380,8 +380,8 @@
     stamp = null; bust = null; score = 0; shownScore = 0; cases = 0; timeLeft = ROUND_TIME; nextSpawn = 0.8;
     lastType = null; noticeCD = 0; shake = 0; streak = 0; lastCatchAt = -99;
     stats = { thrown: 0, hits: 0, biggest: null, escaped: 0, bestStreak: 0, bumps: 0 };
-    for (let i = 0; i < 5; i++) rices.push(randomRoadPoint());
-    stacks = []; for (let i = 0; i < 4; i++) stacks.push(randomRoadPoint());
+    for (let i = 0; i < 4; i++) rices.push(randomRoadPoint());
+    stacks = []; for (let i = 0; i < 3; i++) stacks.push(randomRoadPoint());
     ammo = mode.startNotices;
   }
 
@@ -430,9 +430,9 @@
       const x = nodeX(i), y = nodeX(j);
       nodes.push({ i, j, d: Math.hypot(x - P.x, y - P.y),
         onScreen: Math.abs(x - P.x) < hw && Math.abs(y - P.y) < hh,
-        crowded: suspects.some(s => Math.hypot(s.x - x, s.y - y) < 400) });
+        crowded: suspects.some(s => Math.hypot(s.x - x, s.y - y) < 350) });
     }
-    let ok = nodes.filter(n => !n.onScreen && !n.crowded && n.d > 750 && n.d < 1500);
+    let ok = nodes.filter(n => !n.onScreen && !n.crowded && n.d > 550 && n.d < 1200);
     if (!ok.length) ok = nodes.filter(n => !n.onScreen && !n.crowded);
     if (!ok.length) ok = nodes.filter(n => !n.onScreen);
     if (!ok.length) ok = [nodes.sort((a, b) => b.d - a.d)[0]];
@@ -475,7 +475,7 @@
 
     const d = Math.hypot(P.x - s.x, P.y - s.y);
     let sp = s.ty.spd * mode.spdMul * (1 + 0.15 * progress()) * (s.gen ? 1.1 : 1);  // ramps up over the shift
-    if (d < CATCH_R) { s.meter += dt / 1.8; sp *= 0.8; } else s.meter = Math.max(0, s.meter - dt * 0.2);
+    if (d < CATCH_R) { s.meter += dt / 1.3; sp *= 0.75; } else s.meter = Math.max(0, s.meter - dt * 0.2);
     if (s.meter >= 1) { startBust(s); return; }
 
     if (s.daze > 0) { s.daze -= dt; return; }
@@ -532,7 +532,7 @@
   const DIRS = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
   const DIR_KEYS = ['up', 'down', 'left', 'right'];
   const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' };
-  const TURN_RATE = 10;       // how quickly the car swings round to face the new direction (radians/sec)
+  const TURN_RATE = 7.5;       // how quickly the car swings round to face the new direction (radians/sec)
   const TURN_MEMORY = 0.7;    // seconds a turn pressed early is remembered
   let lastDir = null;         // most recently pressed direction key
   const pressT = {};          // when each direction key was pressed
@@ -620,10 +620,10 @@
     const laneDir = want || (P.spd > 10 ? headingDir() : null);
     if (laneDir) {
       if (laneDir === 'left' || laneDir === 'right') {
-        const c = laneCentre(P.y), ny = P.y + (c - P.y) * Math.min(1, dt * 9);
+        const c = laneCentre(P.y), ny = P.y + (c - P.y) * Math.min(1, dt * 6);
         if (Math.abs(c - P.y) <= ROAD_HALF && !circleSolid(P.x, ny, P.r)) P.y = ny;
       } else {
-        const c = laneCentre(P.x), nx = P.x + (c - P.x) * Math.min(1, dt * 9);
+        const c = laneCentre(P.x), nx = P.x + (c - P.x) * Math.min(1, dt * 6);
         if (Math.abs(c - P.x) <= ROAD_HALF && !circleSolid(nx, P.y, P.r)) P.x = nx;
       }
     }
@@ -978,7 +978,7 @@
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.fillStyle = '#2a3138'; ctx.fillRect(0, 0, W, H);
     const z = cam.z, vw = W / z, vh = H / z;
-    const sx = shake ? rand(-shake, shake) : 0, sy = shake ? rand(-shake, shake) : 0;
+    const sx = 0, sy = 0;   // screen shake removed for comfort
     const cx = cam.x + sx, cy = cam.y + sy, x0 = cx - vw / 2, y0 = cy - vh / 2;
     const inView = (x, y, w, h, m = 160) => x < x0 + vw + m && x + w > x0 - m && y < y0 + vh + m && y + h > y0 - m;
 
@@ -1162,7 +1162,7 @@
   // ================= Flow =================
   function startGame() {
     reset(); state = 'play';
-    cam.x = P.x; cam.y = P.y;
+    cam.x = P.x; cam.y = P.y; cam.z = BASEZ; cam.lx = cam.ly = 0; cam.px = cam.py = undefined;
     $('title').classList.add('hidden'); $('over').classList.add('hidden'); $('hud').classList.remove('hidden'); showTouch(true);
     $('hudDriver').textContent = mode.name; $('hudDriver').parentElement.style.color = mode.color;
     toast(`${mode.name} (${mode.rank}) and GST 009 are on the road!`, mode.color);
@@ -1329,18 +1329,30 @@
   prerender();
   reset();
   let last = performance.now();
+  let dtSmooth = 1 / 60;
   function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+    // Smooth out uneven frame times so movement doesn't jitter
+    const raw = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
+    dtSmooth += (raw - dtSmooth) * 0.25;
+    const dt = dtSmooth; t += dt;
     if (state === 'play' || state === 'ending') update(dt);
     else updateFX(dt);
 
     // Camera
     let tx, ty, tz;
-    if (state === 'title') { tx = WORLD / 2 + Math.cos(t * .07) * 900; ty = WORLD / 2 + Math.sin(t * .05) * 700; tz = BASEZ * .85; }
-    else if (bust) { tx = (P.x + bust.s.x) / 2; ty = (P.y + bust.s.y) / 2; tz = BASEZ * 1.3; }
-    else { tx = P.x + Math.cos(P.a) * P.spd * .35; ty = P.y + Math.sin(P.a) * P.spd * .35; tz = BASEZ * (1 - .08 * clamp(P.spd / 300, 0, 1.4)); }
-    const ck = state === 'title' ? 1 : Math.min(1, dt * 5);
-    cam.x += (tx - cam.x) * ck; cam.y += (ty - cam.y) * ck; cam.z += (tz - cam.z) * Math.min(1, dt * 3);
+    if (state === 'title') { tx = WORLD / 2 + Math.cos(t * .07) * WORLD * .25; ty = WORLD / 2 + Math.sin(t * .05) * WORLD * .2; tz = BASEZ * .85; }
+    else if (bust) { tx = (P.x + bust.s.x) / 2; ty = (P.y + bust.s.y) / 2; tz = BASEZ * 1.15; }
+    else {
+      // Look slightly ahead of where the car is actually moving, eased in slowly so turns don't swing the view
+      const vx = (P.x - (cam.px ?? P.x)) / Math.max(dt, 1e-3), vy = (P.y - (cam.py ?? P.y)) / Math.max(dt, 1e-3);
+      const kl = 1 - Math.exp(-2 * dt);
+      cam.lx = (cam.lx || 0) + (clamp(vx, -420, 420) * .2 - (cam.lx || 0)) * kl;
+      cam.ly = (cam.ly || 0) + (clamp(vy, -420, 420) * .2 - (cam.ly || 0)) * kl;
+      tx = P.x + cam.lx; ty = P.y + cam.ly; tz = BASEZ;   // steady zoom
+    }
+    cam.px = P.x; cam.py = P.y;
+    const ck = state === 'title' ? 1 : 1 - Math.exp(-7 * dt);
+    cam.x += (tx - cam.x) * ck; cam.y += (ty - cam.y) * ck; cam.z += (tz - cam.z) * (1 - Math.exp(-2.5 * dt));
 
     draw(dt);
     if (state !== 'title') updateHUD(dt); else drawHero();
