@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Tax Mobile of Justice</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root { --ink: #1b2333; --paper: #f7f1e3; --red: #d23a2f; --gold: #f2b705; --blue: #1f4e9c; --muted: #6b7184; }
+  html, body { margin: 0; height: 100%; background: #2a3138; overflow: hidden; touch-action: none;
+    user-select: none; -webkit-user-select: none; font-family: Inter, "Segoe UI", system-ui, sans-serif; color: var(--ink); }
+  canvas#game { display: block; }
+  .hidden { display: none !important; }
+  .mono { font-family: "IBM Plex Mono", "Courier New", monospace; font-size: 10.5px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+
+  /* HUD */
+  #hud { position: fixed; top: 14px; left: 14px; right: 14px; display: flex; justify-content: space-between;
+    align-items: flex-start; pointer-events: none; z-index: 5; gap: 12px; }
+  .panel { background: var(--paper); border-radius: 14px; padding: 10px 14px 11px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 8px 24px rgba(0,0,0,.28); min-width: 170px; }
+  .brand { font-family: Fraunces, Georgia, serif; font-weight: 800; font-size: 15px; letter-spacing: .01em; }
+  .brand small { font-family: Inter, sans-serif; font-weight: 600; font-size: 11px; color: var(--blue); margin-left: 6px; }
+  .money { font-family: Fraunces, Georgia, serif; font-weight: 800; font-size: 28px; line-height: 1.1;
+    font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .sub { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+  .panel.right { text-align: right; min-width: 150px; }
+  .ammo { margin-top: 6px; font-size: 11.5px; font-weight: 700; color: var(--red); display: flex; align-items: center; gap: 6px; }
+  #ammo { letter-spacing: 2px; font-size: 14px; }
+  #time { font-family: Fraunces, Georgia, serif; font-weight: 800; font-size: 28px; line-height: 1.1; font-variant-numeric: tabular-nums; margin-top: 4px; }
+  #time.urgent { color: var(--red); animation: pulse .5s ease-in-out infinite alternate; }
+  @keyframes pulse { to { transform: scale(1.08); } }
+  .bar { height: 6px; border-radius: 3px; background: #e2d8c2; margin-top: 6px; overflow: hidden; }
+  .bar > div { height: 100%; background: linear-gradient(90deg, var(--red), var(--gold)); border-radius: 3px; }
+
+  @media (max-width: 560px) {
+    #hud { top: 10px; left: 10px; right: 10px; }
+    .panel { min-width: 0; padding: 8px 10px; }
+    .panel.right { min-width: 96px; }
+    .money, #time { font-size: 21px; }
+    .brand { font-size: 13px; } .brand small { display: block; margin: 2px 0 0; }
+  }
+
+  /* Overlays */
+  .overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10;
+    background: radial-gradient(ellipse at center, rgba(20,26,36,.35), rgba(12,16,24,.82)); }
+  .card { background: var(--paper); width: min(560px, calc(100% - 32px)); border-radius: 20px; padding: 26px 28px 24px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.45); max-height: 90vh; overflow: auto; box-sizing: border-box; position: relative; }
+  .card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 6px; border-radius: 20px 20px 0 0;
+    background: repeating-linear-gradient(90deg, var(--red) 0 22px, var(--blue) 22px 44px); }
+  .card h1 { font-family: Fraunces, Georgia, serif; font-weight: 800; font-size: 38px; line-height: 1.02; margin: 8px 0 6px; letter-spacing: -.01em; }
+  .card h2 { font-family: Fraunces, Georgia, serif; font-weight: 800; font-size: 28px; margin: 8px 0 10px; }
+  .card p { line-height: 1.55; margin: 10px 0; font-size: 15px; }
+  #title .card { width: min(780px, calc(100% - 24px)); padding-bottom: 0; }
+  #title .card p { margin: 8px 0 0; }
+  #hero { display: block; width: 100%; height: 58px; margin: 4px 0 0; }
+  .startbar { position: sticky; bottom: 0; background: linear-gradient(rgba(247,241,227,0), var(--paper) 28%); padding: 10px 0 20px; }
+  @media (min-width: 760px) { .steps { grid-template-columns: 1fr 1fr; column-gap: 18px; } .steps li:last-child { grid-column: span 2; } }
+  .section { font: 800 11px Inter, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
+  .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .mode { text-align: left; background: #fff; border: 2px solid #e2d8c2; border-radius: 14px; padding: 12px 14px; cursor: pointer;
+    font: inherit; color: inherit; transition: border-color .12s, box-shadow .12s, transform .08s; }
+  .mode:hover { border-color: #c9bda3; }
+  .mode.sel { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(27,35,51,.12); }
+  .mode .who { font-family: Fraunces, Georgia, serif; font-weight: 800; font-size: 19px; }
+  .mode .rank { font-size: 12px; font-weight: 600; color: var(--muted); margin: 1px 0 6px; }
+  .badge { display: inline-block; font: 800 10.5px Inter, sans-serif; letter-spacing: .06em; padding: 3px 8px; border-radius: 99px; vertical-align: 3px; margin-left: 6px; }
+  .badge.normal { background: #dcebdc; color: #2e6b32; } .badge.hard { background: #f6d9d6; color: #a12a22; }
+  .mode ul { margin: 0; padding-left: 16px; font-size: 12.5px; line-height: 1.5; color: #3b4356; }
+  .steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .steps li { display: grid; grid-template-columns: 30px 1fr; gap: 8px; align-items: start; font-size: 14px; line-height: 1.45; }
+  .steps .ic { width: 30px; height: 30px; border-radius: 9px; background: #efe6d2; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+  .controls2 { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font-size: 13.5px; font-weight: 600; margin-top: 2px; }
+  .controls2 > div { display: flex; align-items: center; gap: 8px; }
+  .btn.secondary { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px #d8ccb2; margin-top: 8px; }
+  .btn.secondary:hover { background: #efe6d2; }
+  @media (max-width: 600px) { .modes { grid-template-columns: 1fr; } }
+  .controls { display: grid; grid-template-columns: auto 1fr; gap: 10px 14px; align-items: center; margin: 16px 0 6px; font-size: 14.5px; font-weight: 600; }
+  .keys { display: flex; gap: 4px; }
+  kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; padding: 0 7px; box-sizing: border-box;
+    background: #fff; border: 1px solid #cfc5ae; border-bottom-width: 3px; border-radius: 6px; font: 700 12px Inter, sans-serif; color: var(--ink); }
+  kbd.wide { min-width: 120px; }
+  .tip { font-size: 13px; color: #4a5164; background: #efe6d2; border-radius: 10px; padding: 10px 12px; line-height: 1.5; }
+  .btn { margin-top: 16px; width: 100%; background: var(--ink); color: var(--paper); border: none; border-radius: 12px;
+    font: 800 17px Inter, sans-serif; padding: 15px 22px; cursor: pointer; letter-spacing: .02em; transition: transform .08s; }
+  .btn:hover { background: #26314a; } .btn:active { transform: scale(.98); }
+  .btn span { opacity: .55; font-weight: 600; font-size: 13px; margin-left: 6px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 4px; font-size: 14.5px; }
+  td { padding: 8px 2px; border-top: 1px solid #e2d8c2; }
+  td:last-child { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .grade { display: inline-block; margin: 12px 0 4px; padding: 6px 12px; border: 3px double var(--red); color: var(--red);
+    font-family: Fraunces, Georgia, serif; font-weight: 800; font-size: 20px; transform: rotate(-2deg); border-radius: 6px; }
+  .remark { font-style: italic; color: #3b4356; border-left: 3px solid var(--red); padding-left: 12px; }
+
+  /* Touch controls */
+  #touch { position: fixed; left: 0; right: 0; bottom: 16px; display: flex; justify-content: space-between; padding: 0 16px; z-index: 6; pointer-events: none; }
+  #touch .pad { display: flex; gap: 10px; pointer-events: auto; align-items: flex-end; }
+  #touch button { width: 64px; height: 64px; border-radius: 50%; border: none; background: rgba(247,241,227,.88);
+    font-size: 22px; color: var(--ink); box-shadow: 0 6px 16px rgba(0,0,0,.3); }
+  #touch button.big { width: 78px; height: 78px; background: var(--gold); font-size: 28px; }
+  #touch button.on { filter: brightness(.85); }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud" class="hidden">
+  <div class="panel">
+    <div class="brand">Tax Mobile of Justice <small><span id="hudDriver">Ryan Li</span> · GST 009</small></div>
+    <div class="money" id="rev">$0</div>
+    <div class="sub">Revenue recovered · <span id="cases">0 cases</span></div>
+    <div class="ammo">Notices <span id="ammo"></span></div>
+  </div>
+  <div class="panel right">
+    <div class="mono">Time Bar</div>
+    <div id="time">1:30</div>
+    <div class="bar"><div id="timebar" style="width:100%"></div></div>
+  </div>
+</div>
+
+<div id="title" class="overlay">
+  <div class="card">
+    <div class="mono">Investigation Division · Fleet Unit · Vehicle GST 009</div>
+    <h1>Tax Mobile of Justice</h1>
+    <canvas id="hero" width="900" height="150"></canvas>
+    <p>Tax evaders are fleeing across the city. Jump into the Tax Mobile of Justice (GST 009) and send as many as you can to <b>Revenue House</b> before the <b>60-second Time Bar</b> runs out.</p>
+
+        <div class="controls2" style="margin-top:10px">
+      <div><span class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> or arrow keys to drive</div>
+      <div><kbd class="wide" style="min-width:72px">Space</kbd> throw a Notice</div>
+    </div>
+    <div class="section">1 · Choose your officer</div>
+    <div class="modes">
+      <button class="mode sel" data-mode="ryan">
+        <div class="who">Ryan Li <span class="badge normal">NORMAL</span></div>
+        <div class="rank">Manager · recommended for first-timers</div>
+        <ul>
+          <li>Suspects drive at normal speed</li>
+          <li>Start with 2 Notices, carry up to 5</li>
+          <li>Each Notice hit fills 40% of the ring</li>
+          <li>Standard PG targets</li>
+        </ul>
+      </button>
+      <button class="mode" data-mode="kaspar">
+        <div class="who">Kaspar Chen <span class="badge hard">HARD</span></div>
+        <div class="rank">Senior Manager · bigger cases, bigger KPIs</div>
+        <ul>
+          <li>Suspects 15% faster, less time per case</li>
+          <li>Start with 1 Notice, carry up to 3</li>
+          <li>Each Notice hit fills 70%, so aim carefully</li>
+          <li>Senior Manager KPIs: higher PG targets</li>
+        </ul>
+      </button>
+    </div>
+
+    <div class="section">2 · How to play</div>
+    <ol class="steps">
+      <li><span class="ic">🎯</span><span><b>Find suspects.</b> Red arrows at the edge of the screen point to them, and they show as red dots on the minimap (top right).</span></li>
+      <li><span class="ic">🟡</span><span><b>Fill the gold ring to catch them.</b> Stay close to a suspect to fill it slowly, ram them to stun them, or throw a Notice with <kbd>Space</kbd> to fill it fast.</span></li>
+      <li><span class="ic">✉️</span><span><b>Notices are limited.</b> Drive over the evidence suspects drop, or the ✉️ Notice stacks on the road, to get more.</span></li>
+      <li><span class="ic">⏳</span><span><b>Every case has its own timer</b>, shown under the suspect's name. If it hits zero, the case is time-barred and they get away.</span></li>
+      <li><span class="ic">🍗</span><span><b>Extras:</b> chicken rice gives a speed boost, catching suspects back to back earns a streak bonus, and ERP gantries cost $2. Yes, even us.</span></li>
+    </ol>
+
+    <div class="startbar"><button class="btn" id="startBtn">Start Shift as <span id="startName" style="opacity:1;font-size:inherit;font-weight:800;margin:0">Ryan Li</span> <span>Space</span></button></div>
+  </div>
+</div>
+
+<div id="over" class="overlay hidden">
+  <div class="card">
+    <div class="mono" id="apRef">Performance Appraisal · Confidential</div>
+    <h2>Time Bar Reached</h2>
+    <table>
+      <tr><td>Officer</td><td id="apOfficer">Ryan Li</td></tr>
+      <tr><td>Vehicle</td><td>Tax Mobile of Justice (GST 009)</td></tr>
+      <tr><td>Sent to Revenue House</td><td id="apCases">0</td></tr>
+      <tr><td>Notices served</td><td id="apNotices">0</td></tr>
+      <tr><td>Got away (time-barred)</td><td id="apEscaped">0</td></tr>
+      <tr><td>Best streak</td><td id="apStreak">–</td></tr>
+      <tr><td>Biggest case</td><td id="apBig">–</td></tr>
+      <tr><td>Revenue recovered</td><td id="apRev">$0</td></tr>
+    </table>
+    <div class="grade" id="apGrade"></div>
+    <p class="remark" id="apRemark"></p>
+    <button class="btn" id="againBtn">Start New Shift <span>Space</span></button>
+    <button class="btn secondary" id="changeBtn">Change Officer</button>
+  </div>
+</div>
+
+<div id="touch" class="hidden">
+  <div class="pad"><button data-k="left">◀</button><button data-k="right">▶</button></div>
+  <div class="pad"><button data-k="down">▼</button><button data-k="up">▲</button><button id="tThrow" class="big">✉️</button></div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  // ================= Settings =================
+  const ROUND_TIME = 60;        // seconds per shift
+  const CATCH_R = 120;          // stay this close to fill the gold ring
+  const NOTICE_COOLDOWN = 0.6;  // seconds between Notices
+  const STREAK_WINDOW = 12;     // catch again within this many seconds to build a streak
+
+  // ================= Officers (game modes) =================
+  const MODES = {
+    ryan: { name: 'Ryan Li', rank: 'Manager', color: '#1f4e9c', boss: 'Supervisor',
+      startNotices: 2, maxNotices: 5, hit: 0.4, spdMul: 1, caseTime: 20,
+      pg: [130000, 300000, 500000, 750000],
+      remarks: [
+        'Ryan Li spent most of the shift looking for parking. Please see HR, and bring supporting documents.',
+        'Ryan Li is reminded that the Tax Mobile of Justice does go faster than 40 km/h.',
+        'Adequate. Ryan Li is reminded that the kerb is not a parking lot.',
+        'Strong showing. Ryan Li is reminded that Revenue House is not a drive-through.',
+        'Exceptional. Recommend promotion, a commendation, and permission to finally switch on the aircon in GST 009.'] },
+    kaspar: { name: 'Kaspar Chen', rank: 'Senior Manager', color: '#6a3fa0', boss: 'Director',
+      startNotices: 1, maxNotices: 3, hit: 0.7, spdMul: 1.15, caseTime: 16,
+      pg: [200000, 450000, 750000, 1100000],
+      remarks: [
+        'Kaspar Chen is reminded that \u201Cdelegating to Ryan\u201D is not an investigation strategy.',
+        'Kaspar Chen is reminded that \u201CI\u2019ll circle back\u201D is not a pursuit technique.',
+        'Adequate for a Senior Manager. Kaspar Chen is reminded that the kerb is not a parking lot either.',
+        'Strong. Kaspar Chen is reminded that the pool car must be returned with a full tank.',
+        'Outstanding. Kaspar Chen has been invited to share best practices at the next town hall. Attendance is compulsory.'] },
+  };
+  let mode = MODES.ryan;
+
+  const T = 100, BLOCK = 5, NODES = 7, GRID = (NODES - 1) * BLOCK + 1, WORLD = GRID * T;
+  const INK = '#1b2333', PAPER = '#f7f1e3', RED = '#d23a2f', GOLD = '#f2b705', BLUE = '#1f4e9c';
+  const UI = 'Inter, "Segoe UI", system-ui, sans-serif', DISPLAY = 'Fraunces, Georgia, serif';
+
+  // ================= Suspects =================
+  const TYPES = {
+    oliver: { name: 'Offshore Oliver', kind: 'sports', color: '#f2c230', spd: 190, value: 250000, offence: 'Undeclared offshore income',
+      drop: { icon: 'statement', label: 'Swiss bank statement', val: 8000 },
+      taunts: ['Catch me in Monaco!', 'My money is on holiday!', 'Offshore is a state of mind!'],
+      excuses: ['That money is just on holiday in the Caymans.', 'Offshore? I get seasick, how can?'],
+      replies: ['Holiday is over. Please declare.', 'Then you won’t mind showing us the statements.'] },
+    shell: { name: 'Shell Company Pte Ltd', kind: 'van', color: '#8d9aa8', spd: 160, value: 120000, offence: 'Layered shell entities',
+      drop: { icon: 'shell', label: 'A literal shell', val: 2000 },
+      taunts: ['Which company? We have many!', 'Talk to our other director!', 'Our office is a letterbox!'],
+      excuses: ['We are only a holding company!', 'I am just the director on paper.'],
+      replies: ['Holding what, exactly?', 'Paper is our speciality, sir.'] },
+    contractor: { name: 'Cash-Only Contractor', kind: 'truck', color: '#e0672f', spd: 140, value: 90000, offence: 'Unrecorded cash sales',
+      drop: { icon: 'cash', label: 'Bundle of cash', val: 5000 },
+      taunts: ['Cash only, no receipt!', 'Discount if you pay cash!', 'Receipt? Never heard of it.'],
+      excuses: ['Cash? What cash?', 'My dog ate all the receipts.'],
+      replies: ['The cash you dropped all over the road.', 'We will need a statement from the dog also.'] },
+    crypto: { name: 'Crypto Bro', kind: 'scooter', color: '#8e44ad', spd: 165, value: 150000, offence: 'Unreported trading income',
+      drop: { icon: 'nft', label: 'NFT', val: 0 },
+      taunts: ['HODL!', 'To the moon! 🚀', 'Have fun staying poor!'],
+      excuses: ['Bro, it’s not income, it’s unrealised vibes.', 'It’s on the blockchain, nobody can see it.'],
+      replies: ['Please bring the vibes to Revenue House.', 'The ledger is literally public, bro.'] },
+    influencer: { name: 'Undeclared Influencer', kind: 'convertible', color: '#ff74b1', spd: 170, value: 80000, offence: 'Undeclared sponsorship income',
+      drop: { icon: 'ad', label: '#ad tag', val: 3000 },
+      taunts: ['Like and subscribe!', 'Use my code TAXFREE!', 'This chase is going viral!'],
+      excuses: ['It was a gifted collab, not income!', 'Wait, can I film this first?'],
+      replies: ['Gifts for posts also count, ah.', 'Sure. Tag us: #RevenueHouse'] },
+  };
+  const BUMP_LINES = ['Hey! My paint!', 'That\u2019s a company car!', 'I\u2019ll claim this as a business expense!', 'Ow! Is that even allowed?'];
+  const HIT_LINES = ['Not the brown envelope!', 'Return to sender!', 'I’ll read it later!', 'Is that… a Notice?!', 'Wrong address!', 'Ow, paperwork!'];
+  const DIMS = { sedan: [46, 24], sports: [48, 24], van: [50, 26], truck: [62, 28], scooter: [26, 11], convertible: [44, 22] };
+
+  // ================= Helpers =================
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const nodeX = i => (i * BLOCK + 0.5) * T;
+  const money = n => '$' + Math.round(n).toLocaleString('en-SG');
+  const isRoad = (tx, ty) => tx >= 0 && ty >= 0 && tx < GRID && ty < GRID && (tx % BLOCK === 0 || ty % BLOCK === 0);
+  const solidAt = (x, y) => !isRoad(Math.floor(x / T), Math.floor(y / T));
+  const circleSolid = (x, y, r) => solidAt(x - r, y - r) || solidAt(x + r, y - r) || solidAt(x - r, y + r) || solidAt(x + r, y + r);
+  function lerpAngle(a, b, k) { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * k; }
+  function shade(hex, f) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = clamp(Math.round((n >> 16) * f), 0, 255), g = clamp(Math.round(((n >> 8) & 255) * f), 0, 255), b = clamp(Math.round((n & 255) * f), 0, 255);
+    return `rgb(${r},${g},${b})`;
+  }
+  function rr(c, x, y, w, h, r) {
+    if (w <= 0 || h <= 0) return c.beginPath();
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+  }
+  function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function randomRoadPoint() {
+    const lane = nodeX(Math.floor(rand(0, NODES))), along = rand(T * 0.7, WORLD - T * 0.7);
+    return Math.random() < 0.5 ? { x: along, y: lane } : { x: lane, y: along };
+  }
+
+  // ================= Canvas =================
+  const cv = $('game'), ctx = cv.getContext('2d');
+  let W = 0, H = 0, DPR = 1, BASEZ = 1;
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    cv.style.width = W + 'px'; cv.style.height = H + 'px';
+    BASEZ = clamp(Math.min(W, H) / 760, 0.55, 1.05);
+  }
+  addEventListener('resize', resize); resize();
+
+  function makePattern(base, n, alpha) {
+    const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+    g.fillStyle = base; g.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < n; i++) { const v = Math.random() < .5 ? 255 : 0; g.fillStyle = `rgba(${v},${v},${v},${Math.random() * alpha})`; g.fillRect(Math.random() * 128, Math.random() * 128, 1 + Math.random() * 1.5, 1 + Math.random() * 1.5); }
+    return ctx.createPattern(c, 'repeat');
+  }
+  const PAT_ROAD = makePattern('#3e444d', 1400, .10), PAT_PAVE = makePattern('#ddd4c2', 700, .07), PAT_GRASS = makePattern('#7fb068', 900, .12);
+
+  // ================= City (fixed layout) =================
+  const ROOFS = ['#f3e2c0', '#dfe9ef', '#f4d3c0', '#d9e8d2', '#e9e2f3', '#f6e7a8', '#efd5dc', '#e7ecd9'];
+  const blocks = [];
+  (function buildCity() {
+    const R = mulberry32(20261113), S = (BLOCK - 1) * T, pad = 26;
+    for (let bi = 0; bi < NODES - 1; bi++) for (let bj = 0; bj < NODES - 1; bj++) {
+      const x = (bi * BLOCK + 1) * T, y = (bj * BLOCK + 1) * T;
+      const b = { x, y, S, park: R() < 0.17, buildings: [], trees: [] };
+      if (b.park) {
+        for (let k = 0; k < 11; k++) { const r = 16 + R() * 15; b.trees.push({ x: x + pad + r + R() * (S - 2 * pad - 2 * r), y: y + pad + r + R() * (S - 2 * pad - 2 * r), r, H: 26 + R() * 14 }); }
+      } else {
+        const inner = S - 2 * pad, gap = 24, g = (inner - gap) / 2, v = R();
+        const rects = v < 0.4 ? [[0, 0, g, g], [g + gap, 0, g, g], [0, g + gap, g, g], [g + gap, g + gap, g, g]]
+          : v < 0.68 ? [[0, 0, inner, g], [0, g + gap, inner, g]]
+          : v < 0.85 ? [[0, 0, g, inner], [g + gap, 0, g, inner]]
+          : [[0, 0, inner, g], [0, g + gap, g, g], [g + gap, g + gap, g, g]];
+        for (const [rx, ry, rw, rh] of rects) {
+          const roof = ROOFS[Math.floor(R() * ROOFS.length)];
+          b.buildings.push({ x: x + pad + rx, y: y + pad + ry, w: rw, h: rh, H: 45 + R() * 75, roof, wall: shade(roof, .8), num: 100 + Math.floor(R() * 800), seed: Math.floor(R() * 1e9) });
+        }
+        for (let k = 0; k < 6; k++) {
+          const side = Math.floor(R() * 4), f = 0.1 + R() * 0.8, i = 13;
+          const p = side === 0 ? [x + f * S, y + i] : side === 1 ? [x + f * S, y + S - i] : side === 2 ? [x + i, y + f * S] : [x + S - i, y + f * S];
+          b.trees.push({ x: p[0], y: p[1], r: 10 + R() * 3, H: 18 });
+        }
+      }
+      blocks.push(b);
+    }
+  })();
+  const GANTRIES = [
+    { h: true, i: 1, j: 3 }, { h: true, i: 4, j: 1 }, { h: true, i: 2, j: 5 },
+    { h: false, i: 2, j: 4 }, { h: false, i: 5, j: 2 }, { h: false, i: 0, j: 1 },
+  ].map(g => g.h ? { h: true, x: nodeX(g.i) + 250, y: nodeX(g.j) } : { h: false, x: nodeX(g.i), y: nodeX(g.j) + 250 });
+
+  // ================= State =================
+  let state = 'title', ammo = 0, stacks = [], P, suspects, items, rices, notices, particles, skids, floaters, toasts, stamp, bust;
+  let score, shownScore, cases, timeLeft, nextSpawn, lastType, noticeCD, shake, endT, stats, streak, lastCatchAt, overAt = 0, t = 0;
+  const cam = { x: WORLD / 2, y: WORLD / 2, z: 1 };
+  const keys = { up: false, down: false, left: false, right: false };
+
+  function reset() {
+    P = { x: nodeX(3), y: nodeX(3), a: -Math.PI / 2, spd: 0, r: 15, boost: 0, px: 0, py: 0, rear: null };
+    suspects = []; items = []; rices = []; notices = []; particles = []; skids = []; floaters = []; toasts = [];
+    stamp = null; bust = null; score = 0; shownScore = 0; cases = 0; timeLeft = ROUND_TIME; nextSpawn = 0.8;
+    lastType = null; noticeCD = 0; shake = 0; streak = 0; lastCatchAt = -99;
+    stats = { thrown: 0, hits: 0, biggest: null, escaped: 0, bestStreak: 0, bumps: 0 };
+    for (let i = 0; i < 5; i++) rices.push(randomRoadPoint());
+    stacks = []; for (let i = 0; i < 4; i++) stacks.push(randomRoadPoint());
+    ammo = mode.startNotices;
+  }
+
+  const progress = () => 1 - timeLeft / ROUND_TIME;  // 0 at start of shift, 1 at the end
+  const toast = (text, color = INK) => { toasts.push({ text, color, t: 2.6 }); if (toasts.length > 3) toasts.shift(); };
+  const floater = (x, y, text, color = INK) => floaters.push({ x, y, text, color, t: 1.5 });
+  function burst(x, y, n, opts) {
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, Math.PI * 2), s = rand(opts.spdMin || 40, opts.spd || 160);
+      particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(.5, 1) * (opts.life || 1), max: opts.life || 1,
+        size: rand(.7, 1.3) * (opts.size || 6), color: pick(opts.colors), kind: opts.kind || 'puff', rot: rand(0, 6), vr: rand(-10, 10) });
+    }
+  }
+
+  // ================= Suspects =================
+  function chooseNext(s) {
+    let best = null, bs = -1e9;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const i = s.ci + dx, j = s.cj + dy;
+      if (i < 0 || j < 0 || i >= NODES || j >= NODES) continue;
+      let sc = Math.hypot(nodeX(i) - P.x, nodeX(j) - P.y) + Math.random() * 260;
+      if (i === s.pi && j === s.pj) sc -= 350;
+      const edges = (i === 0 || i === NODES - 1 ? 1 : 0) + (j === 0 || j === NODES - 1 ? 1 : 0);
+      sc -= edges * 160;  // discourage hiding in edges and corners
+      if (sc > bs) { bs = sc; best = [i, j]; }
+    }
+    s.ti = best[0]; s.tj = best[1];
+  }
+  function spawnSuspect(key, ci, cj, gen = 0) {
+    const s = { key, ty: TYPES[key], ci, cj, pi: -1, pj: -1, ti: ci, tj: cj, x: nodeX(ci), y: nodeX(cj), a: 0,
+      meter: 0, gen, daze: 0, bumpCD: 0, caseT: gen ? 14 : mode.caseTime * (1 - 0.25 * progress()), dropT: rand(1, 2), tauntT: rand(1, 2.5), say: null, burstT: rand(3, 6), burst: 0,
+      ref: 'TMJ/2026/' + Math.floor(rand(10000, 99999)) };
+    chooseNext(s);
+    s.a = Math.atan2(nodeX(s.tj) - s.y, nodeX(s.ti) - s.x);
+    suspects.push(s);
+    return s;
+  }
+  // Pick an intersection that is off-screen, a fair distance from the player,
+  // and not on top of another suspect.
+  function pickSpawnNode() {
+    const hw = W / (BASEZ * 0.85) / 2 + 120, hh = H / (BASEZ * 0.85) / 2 + 120;
+    const nodes = [];
+    for (let i = 0; i < NODES; i++) for (let j = 0; j < NODES; j++) {
+      const x = nodeX(i), y = nodeX(j);
+      nodes.push({ i, j, d: Math.hypot(x - P.x, y - P.y),
+        onScreen: Math.abs(x - P.x) < hw && Math.abs(y - P.y) < hh,
+        crowded: suspects.some(s => Math.hypot(s.x - x, s.y - y) < 400) });
+    }
+    let ok = nodes.filter(n => !n.onScreen && !n.crowded && n.d > 750 && n.d < 1500);
+    if (!ok.length) ok = nodes.filter(n => !n.onScreen && !n.crowded);
+    if (!ok.length) ok = nodes.filter(n => !n.onScreen);
+    if (!ok.length) ok = [nodes.sort((a, b) => b.d - a.d)[0]];
+    return pick(ok);
+  }
+  function newCase() {
+    let options = Object.keys(TYPES).filter(k => k !== lastType && !suspects.some(s => s.key === k));
+    if (!options.length) options = Object.keys(TYPES);
+    const k = pick(options); lastType = k;
+    const n = pickSpawnNode();
+    spawnSuspect(k, n.i, n.j);
+    toast('New case: ' + TYPES[k].name, RED);
+  }
+  // One case at a time early on, two at once in the second half. New cases are
+  // queued during catch scenes so there is no dead time afterwards.
+  function tickSpawn(dt) {
+    const want = progress() >= 0.45 ? 2 : 1;
+    const active = suspects.filter(s => !bust || s !== bust.s).length;
+    if (active < want && (nextSpawn -= dt) <= 0) { newCase(); nextSpawn = 1.2; }
+  }
+  function escape(s) {
+    suspects.splice(suspects.indexOf(s), 1);
+    stats.escaped++; streak = 0;
+    burst(s.x, s.y, 18, { colors: ['rgba(255,255,255,.7)', 'rgba(200,200,200,.6)'], spd: 120, life: .8, size: 10 });
+    floater(s.x, s.y - 30, 'See you never! \uD83D\uDC4B', RED);
+    toast('Case time-barred: ' + s.ty.name + ' got away', RED);
+    if (!suspects.length) nextSpawn = Math.min(nextSpawn, 0.8);
+  }
+  const say = (s, text, dur = 1.8) => { s.say = { text, t: dur }; };
+
+  function updateSuspect(s, dt) {
+    if (s.say && (s.say.t -= dt) <= 0) s.say = null;
+    if ((s.tauntT -= dt) <= 0) { s.tauntT = rand(5, 8); if (!s.say) say(s, pick(s.ty.taunts)); }
+    s.bumpCD -= dt;
+    if ((s.caseT -= dt) <= 0) { escape(s); return; }
+    if ((s.dropT -= dt) <= 0) {
+      s.dropT = rand(2.6, 3.4);
+      if (ammo < mode.maxNotices) { items.push({ ...s.ty.drop, x: s.x, y: s.y, life: 12 }); if (items.length > 14) items.shift(); }
+    }
+
+    const d = Math.hypot(P.x - s.x, P.y - s.y);
+    let sp = s.ty.spd * mode.spdMul * (1 + 0.15 * progress()) * (s.gen ? 1.1 : 1);  // ramps up over the shift
+    if (d < CATCH_R) { s.meter += dt / 1.8; sp *= 0.8; } else s.meter = Math.max(0, s.meter - dt * 0.2);
+    if (s.meter >= 1) { startBust(s); return; }
+
+    if (s.daze > 0) { s.daze -= dt; return; }
+    if (s.key === 'crypto') {
+      if ((s.burstT -= dt) <= 0) { s.burst = 1; s.burstT = rand(4, 7); }
+      if (s.burst > 0) { s.burst -= dt; sp *= 1.6; if (Math.random() < .5) burst(s.x, s.y, 1, { colors: ['rgba(142,68,173,.5)'], spd: 30, life: .5, size: 7 }); }
+    }
+    let mv = sp * dt;
+    while (mv > 0) {
+      const tx = nodeX(s.ti), ty = nodeX(s.tj), dx = tx - s.x, dy = ty - s.y, dist = Math.hypot(dx, dy);
+      if (dist <= mv) { s.x = tx; s.y = ty; mv -= dist; s.pi = s.ci; s.pj = s.cj; s.ci = s.ti; s.cj = s.tj; chooseNext(s); }
+      else { s.x += dx / dist * mv; s.y += dy / dist * mv; mv = 0; }
+    }
+    s.a = lerpAngle(s.a, Math.atan2(nodeX(s.tj) - s.y, nodeX(s.ti) - s.x), Math.min(1, dt * 10));
+  }
+
+  // ================= Busts (the funny bit) =================
+  function startBust(s) {
+    bust = { s, t: 0, excuse: pick(s.ty.excuses), reply: pick(s.ty.replies), stamped: false };
+    s.say = null; s.daze = 0; s.meter = 1; notices.length = 0; shake = 6;
+  }
+  function updateBust(dt) {
+    bust.t += dt;
+    updatePlayer(dt, false);
+    if (!bust.stamped && bust.t >= 2.0) {
+      const s = bust.s, base = s.gen ? Math.round(s.ty.value * 0.45) : s.ty.value, elapsed = ROUND_TIME - timeLeft;
+      streak = elapsed - lastCatchAt <= STREAK_WINDOW ? streak + 1 : 1; lastCatchAt = elapsed;
+      stats.bestStreak = Math.max(stats.bestStreak, streak);
+      const mult = 1 + 0.25 * (Math.min(streak, 5) - 1), val = Math.round(base * mult);
+      if (mult > 1) toast(`Efficiency bonus \u00d7${mult} (${streak} in a row)`, '#b8741a');
+      score += val; cases++; bust.stamped = true;
+      if (!stats.biggest || val > stats.biggest.val) stats.biggest = { name: s.ty.name, val };
+      stamp = { t: 0, dur: 1.8, name: s.ty.name + (s.gen ? ' (Subsidiary)' : ''), val, ref: s.ref, offence: s.ty.offence, mult };
+      burst(s.x, s.y, 46, { kind: 'paper', colors: ['#ffffff', '#f7f1e3', '#dff0d8', '#fde9a8'], spd: 380, spdMin: 120, life: 1.6, size: 9 }); shake = 14;
+    }
+    if (bust.t >= 3.3) finishBust();
+  }
+  function skipBust() { if (bust.t < 2.0) bust.t = 2.0; else if (bust.t > 2.3) bust.t = 3.3; }
+  function finishBust() {
+    const s = bust.s; bust = null;
+    suspects.splice(suspects.indexOf(s), 1);
+    if (s.key === 'shell' && !s.gen) {
+      for (const label of ['A', 'B']) {
+        const n = pickSpawnNode(), sub = spawnSuspect('shell', n.i, n.j, 1);
+        say(sub, `Subsidiary ${label}, newly registered!`, 2.5);
+      }
+      toast('It\u2019s shells all the way down! Two subsidiaries have appeared.', RED);
+    }
+    if (!suspects.length) nextSpawn = Math.min(nextSpawn, 0.6);
+  }
+
+  // ================= Player =================
+  function updatePlayer(dt, control) {
+    const up = control && keys.up, dn = control && keys.down, steer = control ? (keys.right ? 1 : 0) - (keys.left ? 1 : 0) : 0;
+    const maxS = P.boost > 0 ? 420 : 300;
+    if (up) P.spd += 400 * dt;
+    else if (dn) P.spd -= (P.spd > 0 ? 700 : 300) * dt;
+    else P.spd -= P.spd * (control ? 1.2 : 4) * dt;
+    if (P.spd > maxS) P.spd = Math.max(maxS, P.spd - 500 * dt);
+    P.spd = Math.max(P.spd, -150);
+    P.a += steer * 3.3 * clamp(P.spd / 100, -1, 1) * dt;
+    // Driving assist: when not steering, gently straighten up along the road
+    if (!steer && Math.abs(P.spd) > 60) {
+      const axis = Math.round(P.a / (Math.PI / 2)) * (Math.PI / 2), diff = axis - P.a;
+      if (Math.abs(diff) < 0.4) P.a += diff * Math.min(1, dt * 6);
+    }
+
+    P.px = P.x; P.py = P.y;
+    const vx = Math.cos(P.a) * P.spd * dt, vy = Math.sin(P.a) * P.spd * dt;
+    let hit = false;
+    if (!circleSolid(P.x + vx, P.y, P.r)) P.x += vx; else hit = true;
+    if (!circleSolid(P.x, P.y + vy, P.r)) P.y += vy; else hit = true;
+    if (hit) P.spd *= Math.pow(0.25, dt);
+    if (P.boost > 0) { P.boost -= dt; if (Math.random() < .6) burst(P.x - Math.cos(P.a) * 24, P.y - Math.sin(P.a) * 24, 1, { colors: ['rgba(255,255,255,.55)'], spd: 30, life: .6, size: 8 }); }
+
+    // Skid marks when turning hard at speed
+    const rear = { x: P.x - Math.cos(P.a) * 15, y: P.y - Math.sin(P.a) * 15 };
+    if (P.rear && ((steer && Math.abs(P.spd) > 190) || (dn && P.spd > 150))) {
+      const nx = -Math.sin(P.a) * 9, ny = Math.cos(P.a) * 9;
+      for (const s of [1, -1]) skids.push({ x1: P.rear.x + nx * s, y1: P.rear.y + ny * s, x2: rear.x + nx * s, y2: rear.y + ny * s, life: 5 });
+      if (skids.length > 500) skids.splice(0, 2);
+    }
+    P.rear = rear;
+    if (!control) return;
+
+    for (const g of GANTRIES) {
+      const crossed = g.h ? Math.abs(P.y - g.y) < 55 && (P.px - g.x) * (P.x - g.x) < 0 : Math.abs(P.x - g.x) < 55 && (P.py - g.y) * (P.y - g.y) < 0;
+      if (crossed) { score = Math.max(0, score - 2); floater(P.x, P.y - 40, 'ERP −$2.00 · Even we pay ERP', BLUE); }
+    }
+    for (const k of rices) if (Math.hypot(k.x - P.x, k.y - P.y) < 34) {
+      P.boost = 3.5; P.spd += 90; toast('Chicken rice acquired. Morale restored, speed +40%', '#b8741a');
+      burst(k.x, k.y, 12, { colors: ['#fff', '#f4d27a'], spd: 140, life: .6, size: 5 });
+      Object.assign(k, randomRoadPoint());
+    }
+    for (const k of stacks) if (ammo < mode.maxNotices && Math.hypot(k.x - P.x, k.y - P.y) < 34) {
+      ammo = Math.min(mode.maxNotices, ammo + 2); floater(k.x, k.y - 30, '+2 Notices drafted', RED);
+      burst(k.x, k.y, 10, { kind: 'paper', colors: ['#fff'], spd: 120, life: .6, size: 5 });
+      Object.assign(k, randomRoadPoint());
+    }
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      if (ammo < mode.maxNotices && Math.hypot(it.x - P.x, it.y - P.y) < 34) {
+        ammo++; items.splice(i, 1);
+        floater(it.x, it.y - 30, it.icon === 'nft' ? 'NFT (worth $0.00), still evidence \u00b7 +1 Notice' : `${it.label} \u00b7 +1 Notice`, it.icon === 'nft' ? '#8e44ad' : RED);
+      }
+    }
+  }
+
+  function throwNotice() {
+    if (noticeCD > 0) return;
+    if (ammo <= 0) { noticeCD = 0.8; toast('Out of Notices! Collect evidence to draft more.', RED); return; }
+    ammo--; noticeCD = NOTICE_COOLDOWN; stats.thrown++;
+    // Light auto-aim: only locks on to a suspect roughly in front of the car
+    let target = null, bd = 520;
+    for (const s of suspects) {
+      const d = Math.hypot(s.x - P.x, s.y - P.y), off = Math.abs(lerpAngle(0, Math.atan2(s.y - P.y, s.x - P.x) - P.a, 1));
+      if (d < bd && off < 0.8) { bd = d; target = s; }
+    }
+    const sp = 720 + Math.max(0, P.spd);
+    notices.push({ x: P.x + Math.cos(P.a) * 26, y: P.y + Math.sin(P.a) * 26, vx: Math.cos(P.a) * sp, vy: Math.sin(P.a) * sp, target, life: 1.1, rot: 0 });
+  }
+  function updateNotices(dt) {
+    for (let i = notices.length - 1; i >= 0; i--) {
+      const n = notices[i];
+      n.life -= dt; n.rot += dt * 14;
+      if (n.target && suspects.includes(n.target)) {
+        const sp = Math.hypot(n.vx, n.vy), cur = Math.atan2(n.vy, n.vx);
+        const want = Math.atan2(n.target.y - n.y, n.target.x - n.x), na = lerpAngle(cur, want, Math.min(1, dt * 4));
+        n.vx = Math.cos(na) * sp; n.vy = Math.sin(na) * sp;
+      }
+      n.x += n.vx * dt; n.y += n.vy * dt;
+      let gone = n.life <= 0;
+      for (const s of suspects) {
+        if (Math.hypot(s.x - n.x, s.y - n.y) < 30) {
+          gone = true; stats.hits++; s.daze = 0.9; s.meter = Math.min(1, s.meter + mode.hit);
+          say(s, pick(HIT_LINES), 1.4); shake = Math.max(shake, 3);
+          burst(n.x, n.y, 14, { kind: 'paper', colors: ['#fff', '#f7f1e3'], spd: 200, life: .7, size: 6 });
+          if (s.meter >= 1) startBust(s);
+          break;
+        }
+      }
+      if (!gone && solidAt(n.x, n.y) && n.life < 0.95) { gone = true; burst(n.x, n.y, 6, { kind: 'paper', colors: ['#fff'], spd: 90, life: .5, size: 5 }); }
+      if (gone) notices.splice(i, 1);
+      if (bust) return;
+    }
+  }
+
+  // Ramming: cars now collide. A solid hit stuns the suspect and adds a little to the ring.
+  function updateBumps() {
+    for (const s of suspects) {
+      const dx = s.x - P.x, dy = s.y - P.y, d = Math.hypot(dx, dy), minD = s.gen ? 26 : 32;
+      if (d >= minD || d < 0.01) continue;
+      const nx = dx / d, ny = dy / d, push = minD - d, ox = P.x - nx * push, oy = P.y - ny * push;
+      if (!circleSolid(ox, oy, P.r)) { P.x = ox; P.y = oy; }
+      if (Math.abs(P.spd) > 90 && s.bumpCD <= 0) {
+        s.bumpCD = 1.2; s.daze = Math.max(s.daze, 0.8); s.meter = Math.min(1, s.meter + 0.15);
+        P.spd *= 0.35; stats.bumps++; shake = Math.max(shake, 6);
+        say(s, pick(BUMP_LINES), 1.3);
+        burst((P.x + s.x) / 2, (P.y + s.y) / 2, 10, { colors: ['#ffd166', '#ffffff', '#bbbbbb'], spd: 180, life: .5, size: 4 });
+        if (s.meter >= 1) { startBust(s); return; }
+      }
+    }
+  }
+
+  // ================= Update =================
+  function updateFX(dt) {
+    if (stamp && (stamp.t += dt) > stamp.dur) stamp = null;
+    toasts.forEach(x => x.t -= dt); toasts = toasts.filter(x => x.t > 0);
+    floaters.forEach(f => { f.t -= dt; f.y -= 28 * dt; }); floaters = floaters.filter(f => f.t > 0);
+    for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; const k = Math.pow(p.kind === 'paper' ? 0.15 : 0.3, dt); p.vx *= k; p.vy *= k; p.rot += p.vr * dt; p.life -= dt; }
+    particles = particles.filter(p => p.life > 0);
+    for (const s of skids) s.life -= dt; if (skids.length && skids[0].life <= 0) skids = skids.filter(s => s.life > 0);
+    shake = Math.max(0, shake - dt * 30);
+  }
+
+  function update(dt) {
+    updateFX(dt);
+    if (state === 'ending') { if ((endT -= dt) <= 0) showAppraisal(); return; }
+    if (bust) { updateBust(dt); tickSpawn(dt); return; }
+
+    timeLeft -= dt;
+    if (timeLeft <= 0) { timeLeft = 0; state = 'ending'; endT = 1.8; return; }
+
+    noticeCD -= dt;
+    updatePlayer(dt, true);
+    updateNotices(dt);
+    for (const s of suspects.slice()) { if (bust) break; updateSuspect(s, dt); }
+    if (!bust) updateBumps();
+    for (let i = items.length - 1; i >= 0; i--) if ((items[i].life -= dt) <= 0) items.splice(i, 1);
+    tickSpawn(dt);
+  }
+
+  function updateHUD(dt) {
+    shownScore += (score - shownScore) * Math.min(1, dt * 8);
+    if (Math.abs(score - shownScore) < 1) shownScore = score;
+    $('rev').textContent = money(shownScore);
+    $('cases').textContent = cases + (cases === 1 ? ' case' : ' cases');
+    $('ammo').textContent = '\u2709'.repeat(ammo) + '\u25cb'.repeat(mode.maxNotices - ammo);
+    const sec = Math.ceil(timeLeft);
+    $('time').textContent = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+    $('time').classList.toggle('urgent', timeLeft <= 10 && state === 'play');
+    $('timebar').style.width = (timeLeft / ROUND_TIME * 100) + '%';
+  }
+
+  // ================= Drawing: vehicles & props =================
+  function drawVehicle(c, x, y, a, kind, color, sc, player) {
+    const [l0, w0] = DIMS[kind], L = l0 * sc, Wd = w0 * sc;
+    c.save(); c.translate(x, y);
+    c.save(); c.translate(5 * sc, 7 * sc); c.rotate(a); c.fillStyle = 'rgba(15,20,30,.30)'; rr(c, -L / 2 - 1, -Wd / 2 - 1, L + 2, Wd + 2, Wd * .4); c.fill(); c.restore();
+    c.rotate(a);
+    if (kind !== 'scooter') {
+      c.fillStyle = '#15181d'; const wl = L * .17, ww = 3.2 * sc;
+      for (const f of [L * .29, -L * .29]) { rr(c, f - wl / 2, -Wd / 2 - ww + 1, wl, ww, 1.5); c.fill(); rr(c, f - wl / 2, Wd / 2 - 1, wl, ww, 1.5); c.fill(); }
+    }
+    const grad = c.createLinearGradient(0, -Wd / 2, 0, Wd / 2);
+    grad.addColorStop(0, shade(color, .82)); grad.addColorStop(.45, shade(color, 1.1)); grad.addColorStop(1, shade(color, .78));
+    const glass = '#253140';
+
+    if (kind === 'truck') {
+      c.fillStyle = '#ebe5d8'; rr(c, -L / 2, -Wd / 2, L * .72, Wd, 3); c.fill();
+      c.strokeStyle = 'rgba(0,0,0,.15)'; c.lineWidth = 1; c.stroke();
+      c.fillStyle = color; c.fillRect(-L / 2 + 3, -Wd / 2 + 3, L * .72 - 6, 4); c.fillRect(-L / 2 + 3, Wd / 2 - 7, L * .72 - 6, 4);
+      c.fillStyle = 'rgba(46,125,50,.85)'; c.font = `800 ${12 * sc}px ${UI}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.save(); c.rotate(Math.PI / 2); c.fillText('$$$', 0, L * .14); c.restore();
+      c.fillStyle = grad; rr(c, L * .24, -Wd / 2 + 1, L * .26, Wd - 2, 5); c.fill();
+      c.fillStyle = glass; rr(c, L * .36, -Wd / 2 + 4, L * .09, Wd - 8, 2); c.fill();
+    } else if (kind === 'scooter') {
+      c.fillStyle = '#222'; rr(c, -L / 2, -2, L, 4, 2); c.fill();
+      c.fillStyle = grad; rr(c, -L * .4, -Wd / 2, L * .7, Wd, 4); c.fill();
+      c.fillStyle = '#333'; c.beginPath(); c.ellipse(-L * .05, 0, 6 * sc, 9 * sc, 0, 0, 7); c.fill();
+      c.fillStyle = color; c.beginPath(); c.arc(-L * .02, 0, 5.5 * sc, 0, 7); c.fill();
+      c.fillStyle = '#9be7ff'; c.fillRect(L * .04, -3 * sc, 2.5 * sc, 6 * sc);
+    } else {
+      c.fillStyle = grad; rr(c, -L / 2, -Wd / 2, L, Wd, Wd * .38); c.fill();
+      c.strokeStyle = 'rgba(0,0,0,.25)'; c.lineWidth = 1; c.stroke();
+      if (kind === 'sedan') {
+        c.fillStyle = glass; rr(c, -L * .24, -Wd / 2 + 3, L * .5, Wd - 6, 5); c.fill();
+        c.fillStyle = shade(color, 1.04); rr(c, -L * .16, -Wd / 2 + 4.5, L * .3, Wd - 9, 3); c.fill();
+      } else if (kind === 'sports') {
+        c.fillStyle = glass; rr(c, -L * .14, -Wd / 2 + 4, L * .34, Wd - 8, 6); c.fill();
+        c.fillStyle = 'rgba(0,0,0,.25)'; for (const o of [-4, 0, 4]) c.fillRect(L * .26, o - .7, L * .12, 1.4);
+      } else if (kind === 'van') {
+        c.fillStyle = glass; rr(c, L * .2, -Wd / 2 + 3, L * .13, Wd - 6, 3); c.fill();
+        c.fillStyle = shade(color, 1.12); rr(c, -L * .46, -Wd / 2 + 3, L * .63, Wd - 6, 3); c.fill();
+        c.fillStyle = 'rgba(0,0,0,.35)'; c.font = `700 ${7 * sc}px ${UI}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.save(); c.rotate(Math.PI / 2); c.fillText('PTE LTD', 0, L * .14); c.restore();
+      } else if (kind === 'convertible') {
+        c.fillStyle = glass; rr(c, L * .1, -Wd / 2 + 3, L * .1, Wd - 6, 2); c.fill();
+        c.fillStyle = '#5a2a3d'; rr(c, -L * .3, -Wd / 2 + 3, L * .38, Wd - 6, 4); c.fill();
+        c.fillStyle = '#e8b894'; c.beginPath(); c.arc(-L * .04, -Wd * .16, 4.2 * sc, 0, 7); c.fill();
+        c.fillStyle = '#3a2418'; c.beginPath(); c.arc(-L * .07, -Wd * .16, 4.4 * sc, Math.PI * .5, Math.PI * 1.5); c.fill();
+        c.fillStyle = '#111'; c.fillRect(-L * .02, -Wd * .16 - 3 * sc, 1.6 * sc, 6 * sc);
+        c.strokeStyle = '#fff'; c.lineWidth = 1.6 * sc; c.beginPath(); c.arc(L * .02, Wd * .2, 3.5 * sc, 0, 7); c.stroke();
+      }
+    }
+    if (kind !== 'scooter') {
+      c.fillStyle = '#fff4c8'; c.fillRect(L / 2 - 3, -Wd / 2 + 2.5, 3, 4); c.fillRect(L / 2 - 3, Wd / 2 - 6.5, 3, 4);
+      c.fillStyle = '#ff5a4f'; c.fillRect(-L / 2, -Wd / 2 + 2.5, 2.5, 4); c.fillRect(-L / 2, Wd / 2 - 6.5, 2.5, 4);
+    }
+    if (player) {
+      // Singapore-style black number plates, front and back
+      for (const end of [-1, 1]) {
+        const px = end * (L / 2 - 1.2 * sc);
+        c.fillStyle = '#111'; c.fillRect(px - 1.6 * sc, -Wd * .3, 3.2 * sc, Wd * .6);
+        c.save(); c.translate(px, 0); c.rotate(end < 0 ? Math.PI / 2 : -Math.PI / 2);
+        c.fillStyle = '#fff'; c.font = `800 ${2.6 * sc}px ${UI}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.fillText('GST 009', 0, .2 * sc); c.restore();
+      }
+    }
+    c.restore();
+  }
+
+  function drawItem(it) {
+    const bob = Math.sin(t * 4 + it.x * .1) * 3, x = it.x, y = it.y + bob;
+    if (it.life !== undefined && it.life < 3 && Math.floor(t * 8) % 2) return;
+    ctx.fillStyle = 'rgba(15,20,30,.22)'; ctx.beginPath(); ctx.ellipse(it.x + 3, it.y + 6, 13, 7, 0, 0, 7); ctx.fill();
+    ctx.save(); ctx.translate(x, y);
+    if (it.icon === 'rice') {
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(0, 0, 17, 13, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#7aa7d8'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(0, 0, 15, 11, 0, 0, 7); ctx.stroke();
+      ctx.fillStyle = '#f6f0e0'; ctx.beginPath(); ctx.arc(-5, 1, 7.5, 0, 7); ctx.fill();
+      ctx.fillStyle = '#efc98a'; for (const o of [-2, 2, 6]) { rr(ctx, 1 + o * .6, -3 + o * .2, 9, 3.2, 1.5); ctx.fill(); }
+      ctx.fillStyle = '#6fae4f'; ctx.beginPath(); ctx.arc(9, -6, 2.4, 0, 7); ctx.arc(11.5, -2.5, 2.4, 0, 7); ctx.fill();
+      ctx.fillStyle = '#d23a2f'; ctx.beginPath(); ctx.arc(-11, -6, 2.2, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2;
+      for (const o of [-6, 2]) { ctx.beginPath(); ctx.moveTo(o, -12); ctx.quadraticCurveTo(o + 4 * Math.sin(t * 3 + o), -18, o, -24); ctx.stroke(); }
+    } else if (it.icon === 'stack') {
+      for (let i = 2; i >= 0; i--) { ctx.save(); ctx.translate(i * 2.5, -i * 2.5); ctx.rotate(-.15 + i * .12);
+        ctx.fillStyle = '#fff'; ctx.fillRect(-11, -7, 22, 14); ctx.strokeStyle = RED; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(-11, -7); ctx.lineTo(0, 1); ctx.lineTo(11, -7); ctx.stroke(); ctx.restore(); }
+    } else if (it.icon === 'cash') {
+      ctx.rotate(.3); ctx.fillStyle = '#2e7d32'; rr(ctx, -13, -8, 26, 16, 3); ctx.fill();
+      ctx.fillStyle = '#c8f2c0'; ctx.font = `800 12px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('$', 0, 1);
+    } else if (it.icon === 'statement') {
+      ctx.rotate(-.2); ctx.fillStyle = '#fff'; ctx.fillRect(-10, -13, 20, 26);
+      ctx.fillStyle = '#d23a2f'; ctx.fillRect(-10, -13, 20, 5);
+      ctx.fillStyle = '#c5c9d3'; for (let i = 0; i < 4; i++) ctx.fillRect(-7, -4 + i * 4.5, 14 - (i % 2) * 5, 2);
+    } else if (it.icon === 'shell') {
+      ctx.fillStyle = '#f6d7c3'; ctx.beginPath(); ctx.moveTo(0, 10); ctx.arc(0, 10, 15, Math.PI * 1.15, Math.PI * 1.85); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#d99b7d'; ctx.lineWidth = 1.5;
+      for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(0, 10); ctx.lineTo(Math.sin(i * .28) * 14, 10 - Math.cos(i * .28) * 14); ctx.stroke(); }
+    } else if (it.icon === 'nft') {
+      ctx.fillStyle = '#8e44ad'; rr(ctx, -12, -12, 24, 24, 3); ctx.fill();
+      ctx.fillStyle = '#f1c40f'; ctx.fillRect(-6, -6, 4, 4); ctx.fillRect(2, -6, 4, 4); ctx.fillRect(-6, 3, 12, 3);
+      ctx.fillStyle = '#fff'; ctx.font = `800 7px ${UI}`; ctx.textAlign = 'center'; ctx.fillText('NFT', 0, 11);
+    } else if (it.icon === 'ad') {
+      ctx.rotate(.15); ctx.fillStyle = '#ff74b1'; rr(ctx, -15, -9, 30, 18, 9); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = `800 11px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('#ad', 0, 1);
+    }
+    ctx.restore();
+  }
+
+  function drawBuilding(b, ccx, ccy) {
+    const k = b.H / 950, ox = (b.x + b.w / 2 - ccx) * k, oy = (b.y + b.h / 2 - ccy) * k;
+    const { x, y, w, h } = b, floors = Math.max(3, Math.round(b.H / 13));
+    ctx.fillStyle = b.wall; ctx.fillRect(x, y, w, h);
+    const face = (x1, y1, x2, y2, col) => {
+      ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x2 + ox, y2 + oy); ctx.lineTo(x1 + ox, y1 + oy); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(40,40,60,.10)'; ctx.lineWidth = 1.2; ctx.beginPath();
+      for (let i = 1; i < floors; i++) { const f = i / floors; ctx.moveTo(x1 + ox * f, y1 + oy * f); ctx.lineTo(x2 + ox * f, y2 + oy * f); }
+      ctx.stroke();
+    };
+    face(x, y, x + w, y, shade(b.roof, .72));
+    face(x, y + h, x + w, y + h, shade(b.roof, .9));
+    face(x, y, x, y + h, shade(b.roof, .8));
+    face(x + w, y, x + w, y + h, shade(b.roof, .95));
+    const rx = x + ox, ry = y + oy;
+    ctx.fillStyle = b.roof; ctx.fillRect(rx, ry, w, h);
+    ctx.strokeStyle = 'rgba(0,0,0,.09)'; ctx.lineWidth = 3; ctx.strokeRect(rx + 5, ry + 5, w - 10, h - 10);
+    const R = mulberry32(b.seed);
+    for (let i = 0; i < 2; i++) {
+      const tx = rx + 16 + R() * (w - 50), ty = ry + 16 + R() * (h - 44);
+      ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.fillRect(tx + 3, ty + 3, 22, 16);
+      ctx.fillStyle = '#c9ced6'; ctx.fillRect(tx, ty, 22, 16);
+      ctx.fillStyle = '#aeb4be'; ctx.fillRect(tx + 2, ty + 2, 18, 4);
+    }
+    ctx.fillStyle = 'rgba(27,35,51,.28)'; ctx.font = `800 ${Math.min(22, w / 5)}px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(b.num, rx + w / 2, ry + h / 2 + 8);
+  }
+
+  function drawTreeCanopy(tr, ccx, ccy) {
+    const k = tr.H / 950, x = tr.x + (tr.x - ccx) * k, y = tr.y + (tr.y - ccy) * k;
+    ctx.fillStyle = '#3f7f43'; ctx.beginPath(); ctx.arc(x, y, tr.r, 0, 7); ctx.fill();
+    ctx.fillStyle = '#58a15a'; ctx.beginPath(); ctx.arc(x - tr.r * .25, y - tr.r * .25, tr.r * .62, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.beginPath(); ctx.arc(x - tr.r * .4, y - tr.r * .4, tr.r * .25, 0, 7); ctx.fill();
+  }
+
+  function pill(text, x, y, bg, fg, size = 13) {
+    ctx.font = `700 ${size}px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const w = ctx.measureText(text).width + 16, h = size + 10;
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; rr(ctx, x - w / 2 + 1, y - h / 2 + 2, w, h, h / 2); ctx.fill();
+    ctx.fillStyle = bg; rr(ctx, x - w / 2, y - h / 2, w, h, h / 2); ctx.fill();
+    ctx.fillStyle = fg; ctx.fillText(text, x, y + .5);
+  }
+  function bubble(text, x, y, bg, fg, below = false, speaker = '') {
+    ctx.font = `600 14px ${UI}`;
+    const words = text.split(' '), lines = []; let line = '';
+    for (const wd of words) { const tst = line ? line + ' ' + wd : wd; if (ctx.measureText(tst).width > 210 && line) { lines.push(line); line = wd; } else line = tst; }
+    lines.push(line);
+    const lh = 18, padX = 12, top = speaker ? 16 : 0;
+    const w = Math.max(...lines.map(l => ctx.measureText(l).width), speaker ? ctx.measureText(speaker).width : 0) + padX * 2;
+    const h = lines.length * lh + 16 + top;
+    const bx = x - w / 2, by = below ? y + 12 : y - h - 12;
+    ctx.fillStyle = 'rgba(0,0,0,.2)'; rr(ctx, bx + 2, by + 3, w, h, 12); ctx.fill();
+    ctx.fillStyle = bg; rr(ctx, bx, by, w, h, 12); ctx.fill();
+    ctx.beginPath();
+    if (below) { ctx.moveTo(x - 8, by + 1); ctx.lineTo(x, by - 10); ctx.lineTo(x + 8, by + 1); }
+    else { ctx.moveTo(x - 8, by + h - 1); ctx.lineTo(x, by + h + 10); ctx.lineTo(x + 8, by + h - 1); }
+    ctx.fill();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    if (speaker) { ctx.font = `800 11px ${UI}`; ctx.fillStyle = fg; ctx.globalAlpha *= .7; ctx.fillText(speaker.toUpperCase(), bx + padX, by + 9); ctx.globalAlpha /= .7; }
+    ctx.font = `600 14px ${UI}`; ctx.fillStyle = fg;
+    lines.forEach((l, i) => ctx.fillText(l, bx + padX, by + 9 + top + i * lh));
+  }
+  function drawPerson(x, y, color, tt) {
+    const bob = Math.sin(tt * 14) * 1.5;
+    ctx.fillStyle = 'rgba(15,20,30,.25)'; ctx.beginPath(); ctx.ellipse(x + 3, y + 10, 9, 5, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#e8b894'; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x - 6, y - 4 + bob); ctx.lineTo(x - 12, y - 18 + bob); ctx.moveTo(x + 6, y - 4 + bob); ctx.lineTo(x + 12, y - 18 + bob); ctx.stroke();
+    ctx.fillStyle = color; rr(ctx, x - 7, y - 6 + bob, 14, 16, 5); ctx.fill();
+    ctx.fillStyle = '#e8b894'; ctx.beginPath(); ctx.arc(x, y - 10 + bob, 6, 0, 7); ctx.fill();
+    ctx.fillStyle = '#2a1d16'; ctx.beginPath(); ctx.arc(x, y - 12 + bob, 6, Math.PI, 0); ctx.fill();
+    ctx.lineCap = 'butt';
+  }
+
+  // ================= Drawing: frame =================
+  function draw(dt) {
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = '#2a3138'; ctx.fillRect(0, 0, W, H);
+    const z = cam.z, vw = W / z, vh = H / z;
+    const sx = shake ? rand(-shake, shake) : 0, sy = shake ? rand(-shake, shake) : 0;
+    const cx = cam.x + sx, cy = cam.y + sy, x0 = cx - vw / 2, y0 = cy - vh / 2;
+    const inView = (x, y, w, h, m = 160) => x < x0 + vw + m && x + w > x0 - m && y < y0 + vh + m && y + h > y0 - m;
+
+    ctx.save(); ctx.scale(z, z); ctx.translate(-x0, -y0);
+
+    // Greenery beyond the city edge
+    ctx.fillStyle = PAT_GRASS; ctx.fillRect(-2500, -2500, WORLD + 5000, WORLD + 5000);
+    ctx.fillStyle = 'rgba(20,40,25,.35)'; ctx.fillRect(-2500, -2500, WORLD + 5000, WORLD + 5000);
+    // Roads
+    ctx.fillStyle = PAT_ROAD; ctx.fillRect(0, 0, WORLD, WORLD);
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    for (let i = 0; i < NODES; i++) for (let k = 0; k < NODES - 1; k++) {
+      const c = nodeX(i), a = nodeX(k) + T / 2, b = nodeX(k + 1) - T / 2;
+      ctx.fillRect(a, c - T / 2 + 7, b - a, 2); ctx.fillRect(a, c + T / 2 - 9, b - a, 2);
+      ctx.fillRect(c - T / 2 + 7, a, 2, b - a); ctx.fillRect(c + T / 2 - 9, a, 2, b - a);
+    }
+    ctx.fillStyle = 'rgba(246,212,90,.75)';
+    for (let i = 0; i < NODES; i++) for (let k = 0; k < NODES - 1; k++) {
+      const c = nodeX(i), a = nodeX(k) + T / 2 + 30, b = nodeX(k + 1) - T / 2 - 30;
+      for (let d = a; d < b; d += 44) { ctx.fillRect(d, c - 1.5, Math.min(24, b - d), 3); ctx.fillRect(c - 1.5, d, 3, Math.min(24, b - d)); }
+    }
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    for (let i = 0; i < NODES; i++) for (let j = 0; j < NODES; j++) {
+      const nx = nodeX(i), ny = nodeX(j);
+      if (!inView(nx - 100, ny - 100, 200, 200)) continue;
+      for (let s = -T / 2 + 12; s < T / 2 - 12; s += 11) {
+        if (i < NODES - 1) ctx.fillRect(nx + T / 2 + 6, ny + s, 16, 6);
+        if (i > 0) ctx.fillRect(nx - T / 2 - 22, ny + s, 16, 6);
+        if (j < NODES - 1) ctx.fillRect(nx + s, ny + T / 2 + 6, 6, 16);
+        if (j > 0) ctx.fillRect(nx + s, ny - T / 2 - 22, 6, 16);
+      }
+    }
+
+    // Pavements, parks, ground shadows
+    for (const b of blocks) {
+      if (!inView(b.x, b.y, b.S, b.S)) continue;
+      ctx.fillStyle = '#b9ae98'; rr(ctx, b.x - 2, b.y - 2, b.S + 4, b.S + 4, 12); ctx.fill();
+      ctx.fillStyle = PAT_PAVE; rr(ctx, b.x, b.y, b.S, b.S, 10); ctx.fill();
+      if (b.park) {
+        ctx.fillStyle = PAT_GRASS; rr(ctx, b.x + 22, b.y + 22, b.S - 44, b.S - 44, 16); ctx.fill();
+        ctx.strokeStyle = '#e9dcbf'; ctx.lineWidth = 10; ctx.beginPath(); ctx.ellipse(b.x + b.S / 2, b.y + b.S / 2, b.S * .3, b.S * .22, .3, 0, 7); ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(25,30,45,.10)';
+      for (const bd of b.buildings) for (const f of [.35, .7, 1]) ctx.fillRect(bd.x + bd.H * .32 * f, bd.y + bd.H * .32 * f, bd.w, bd.h);
+      ctx.fillStyle = 'rgba(25,30,45,.18)';
+      for (const tr of b.trees) { ctx.beginPath(); ctx.arc(tr.x + tr.r * .5, tr.y + tr.r * .6, tr.r, 0, 7); ctx.fill(); }
+    }
+
+    // Skid marks
+    ctx.lineWidth = 3; ctx.lineCap = 'round';
+    for (const s of skids) { ctx.strokeStyle = `rgba(20,22,26,${Math.min(.16, s.life * .05)})`; ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); ctx.stroke(); }
+    ctx.lineCap = 'butt';
+
+    // Pickups
+    for (const k of rices) if (inView(k.x, k.y, 0, 0)) drawItem({ icon: 'rice', x: k.x, y: k.y });
+    for (const k of stacks) if (inView(k.x, k.y, 0, 0)) drawItem({ icon: 'stack', x: k.x, y: k.y });
+    for (const it of items) if (inView(it.x, it.y, 0, 0)) drawItem(it);
+
+    // Catch range ring
+    if (state === 'play' && !bust && suspects.some(s => Math.hypot(s.x - P.x, s.y - P.y) < CATCH_R * 2)) {
+      ctx.strokeStyle = 'rgba(242,183,5,.6)'; ctx.lineWidth = 2.5; ctx.setLineDash([10, 9]); ctx.lineDashOffset = -t * 30;
+      ctx.beginPath(); ctx.arc(P.x, P.y, CATCH_R, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    // Vehicles
+    for (const s of suspects) {
+      if (!inView(s.x, s.y, 0, 0)) continue;
+      const wob = s.daze > 0 ? Math.sin(t * 30) * .25 : 0;
+      drawVehicle(ctx, s.x, s.y, s.a + wob, s.ty.kind, s.ty.color, s.gen ? .75 : 1, false);
+    }
+    if (bust && bust.t > 0.15) {
+      const s = bust.s, px = s.x + Math.cos(s.a + Math.PI / 2) * 30, py = s.y + Math.sin(s.a + Math.PI / 2) * 30;
+      drawPerson(px, py, s.ty.color, bust.t);
+    }
+    drawVehicle(ctx, P.x, P.y, P.a, 'sedan', '#d5d9de', 1, true);
+
+    // Notices in flight
+    for (const n of notices) {
+      ctx.save(); ctx.translate(n.x, n.y); ctx.rotate(n.rot);
+      ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(-9, -5, 20, 13);
+      ctx.fillStyle = '#fff'; ctx.fillRect(-11, -7, 22, 14);
+      ctx.strokeStyle = RED; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-11, -7); ctx.lineTo(0, 1); ctx.lineTo(11, -7); ctx.stroke();
+      ctx.restore();
+    }
+
+    // Trees and buildings on top (pseudo-3D)
+    for (const b of blocks) {
+      if (!inView(b.x, b.y, b.S, b.S, 260)) continue;
+      for (const bd of b.buildings) drawBuilding(bd, cx, cy);
+      for (const tr of b.trees) drawTreeCanopy(tr, cx, cy);
+    }
+
+    // ERP gantries (overhead)
+    for (const g of GANTRIES) {
+      if (!inView(g.x - 60, g.y - 60, 120, 120)) continue;
+      ctx.save(); ctx.translate(g.x, g.y); if (!g.h) ctx.rotate(Math.PI / 2);
+      ctx.fillStyle = 'rgba(15,20,30,.25)'; ctx.fillRect(4, -50, 12, 110);
+      ctx.fillStyle = '#555c66'; ctx.fillRect(-6, -60, 12, 6); ctx.fillRect(-6, 54, 12, 6);
+      ctx.fillStyle = '#2c6fb7'; rr(ctx, -8, -56, 16, 112, 3); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = `800 11px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.save(); ctx.rotate(-Math.PI / 2); ctx.fillText('ERP  $2.00', 0, 0); ctx.restore();
+      ctx.restore();
+    }
+
+    // Particles
+    for (const p of particles) {
+      const a = clamp(p.life / p.max * 1.5, 0, 1);
+      ctx.globalAlpha = a; ctx.fillStyle = p.color;
+      if (p.kind === 'paper') { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.scale(1, Math.cos(p.rot * 1.3)); ctx.fillRect(-p.size / 2, -p.size / 3, p.size, p.size * .66); ctx.restore(); }
+      else { ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1.6 - a * .6), 0, 7); ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+
+    // Labels, meters, speech
+    for (const s of suspects) {
+      if (!inView(s.x, s.y, 0, 0)) continue;
+      if (s.meter > 0) {
+        ctx.strokeStyle = 'rgba(27,35,51,.45)'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(s.x, s.y, 36, 0, 7); ctx.stroke();
+        ctx.strokeStyle = GOLD; ctx.lineWidth = 5; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.arc(s.x, s.y, 36, -Math.PI / 2, -Math.PI / 2 + s.meter * Math.PI * 2); ctx.stroke(); ctx.lineCap = 'butt';
+      }
+      if (s.daze > 0) for (let i = 0; i < 3; i++) { const a = t * 6 + i * 2.1; pill('★', s.x + Math.cos(a) * 20, s.y - 26 + Math.sin(a) * 6, 'rgba(0,0,0,0)', GOLD, 14); }
+      if (!bust || bust.s !== s) {
+        const urgent = s.caseT < 6;
+        pill(s.ty.name + (s.gen ? ' (Sub)' : '') + '  \u23F3 ' + Math.ceil(s.caseT) + 's', s.x, s.y + 52,
+          urgent ? (Math.floor(t * 6) % 2 ? RED : '#8f1f18') : 'rgba(27,35,51,.88)', '#fff', 12);
+        if (s.say) bubble(s.say.text, s.x, s.y - 30, '#fff', INK);
+      }
+    }
+    pill(mode.name + ' \u00b7 GST 009', P.x, P.y + 40, mode.color, '#fff', 12);
+    if (bust) {
+      if (bust.t > 0.3 && !bust.stamped) bubble(bust.excuse, bust.s.x, bust.s.y - 34, '#fff', INK, false, bust.s.ty.name);
+      if (bust.t > 1.1 && !bust.stamped) bubble(bust.reply, P.x, P.y + 52, mode.color, '#fff', true, mode.name);
+    }
+    for (const f of floaters) { ctx.globalAlpha = clamp(f.t * 2, 0, 1); pill(f.text, f.x, f.y, '#fff', f.color, 12); ctx.globalAlpha = 1; }
+    ctx.restore();
+
+    // ---- Screen space ----
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .35, W / 2, H / 2, Math.max(W, H) * .75);
+    vg.addColorStop(0, 'rgba(10,14,22,0)'); vg.addColorStop(1, 'rgba(10,14,22,.45)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+    if (state === 'title') return;
+
+    // Cinematic bars during a bust
+    const barH = bust ? Math.min(1, bust.t * 4) * 54 : 0;
+    if (barH) { ctx.fillStyle = '#0c0f15'; ctx.fillRect(0, 0, W, barH); ctx.fillRect(0, H - barH, W, barH);
+      if (bust.t > 0.6 && bust.t < 2.0) { ctx.fillStyle = 'rgba(247,241,227,.6)'; ctx.font = `600 12px ${UI}`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText('SPACE TO SKIP', W - 18, H - barH / 2); } }
+
+    if (state === 'play' && !bust) {
+      for (const s of suspects) {
+        const sx2 = (s.x - x0) * z, sy2 = (s.y - y0) * z;
+        if (sx2 > 20 && sx2 < W - 20 && sy2 > 20 && sy2 < H - 20) continue;
+        const dx = sx2 - W / 2, dy = sy2 - H / 2, m = Math.max(Math.abs(dx) / (W / 2 - 44), Math.abs(dy) / (H / 2 - 120));
+        const ax = W / 2 + dx / m, ay = H / 2 + dy / m, ang = Math.atan2(dy, dx);
+        ctx.save(); ctx.translate(ax, ay); ctx.rotate(ang);
+        ctx.fillStyle = RED; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(-10, -13); ctx.lineTo(-4, 0); ctx.lineTo(-10, 13); ctx.closePath(); ctx.stroke(); ctx.fill();
+        ctx.restore();
+        pill(Math.round(Math.hypot(s.x - P.x, s.y - P.y) / 10) + 'm \u00b7 ' + Math.ceil(s.caseT) + 's', ax - Math.cos(ang) * 40, ay - Math.sin(ang) * 30, s.caseT < 6 ? RED : 'rgba(27,35,51,.85)', '#fff', 11);
+      }
+      // Minimap
+      const ms = Math.min(132, W * 0.26), mx = W - ms - 14, my = W < 560 ? 112 : 104, sc = ms / WORLD;
+      ctx.fillStyle = 'rgba(27,35,51,.82)'; rr(ctx, mx - 6, my - 6, ms + 12, ms + 12, 10); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.lineWidth = 2; ctx.beginPath();
+      for (let i = 0; i < NODES; i++) { const c = nodeX(i) * sc; ctx.moveTo(mx, my + c); ctx.lineTo(mx + ms, my + c); ctx.moveTo(mx + c, my); ctx.lineTo(mx + c, my + ms); }
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff'; for (const k of stacks) ctx.fillRect(mx + k.x * sc - 2, my + k.y * sc - 1.5, 4, 3);
+      ctx.fillStyle = '#f4d27a'; for (const k of rices) { ctx.beginPath(); ctx.arc(mx + k.x * sc, my + k.y * sc, 2.2, 0, 7); ctx.fill(); }
+      ctx.fillStyle = '#ff5a4f'; for (const s of suspects) { ctx.beginPath(); ctx.arc(mx + s.x * sc, my + s.y * sc, 4 + Math.sin(t * 8), 0, 7); ctx.fill(); }
+      ctx.save(); ctx.translate(mx + P.x * sc, my + P.y * sc); ctx.rotate(P.a);
+      ctx.fillStyle = '#7fb2ff'; ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-4, -4); ctx.lineTo(-4, 4); ctx.closePath(); ctx.fill(); ctx.restore();
+      // Notice cooldown hint
+      if (noticeCD > 0) { const w = 60; ctx.fillStyle = 'rgba(27,35,51,.6)'; rr(ctx, W / 2 - w / 2, H / 2 + 62 * z, w, 5, 3); ctx.fill();
+        ctx.fillStyle = GOLD; rr(ctx, W / 2 - w / 2, H / 2 + 62 * z, w * clamp(1 - noticeCD / NOTICE_COOLDOWN, 0, 1), 5, 3); ctx.fill(); }
+    }
+
+    // Toasts
+    toasts.forEach((x, i) => {
+      ctx.globalAlpha = clamp(x.t * 2, 0, 1);
+      ctx.font = `700 15px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const w = ctx.measureText(x.text).width + 30, y = (W < 760 ? 140 : 40) + barH + i * 40;
+      ctx.fillStyle = 'rgba(0,0,0,.25)'; rr(ctx, W / 2 - w / 2 + 1, y - 16 + 3, w, 32, 16); ctx.fill();
+      ctx.fillStyle = PAPER; rr(ctx, W / 2 - w / 2, y - 16, w, 32, 16); ctx.fill();
+      ctx.fillStyle = x.color; ctx.fillText(x.text, W / 2, y + 1);
+      ctx.globalAlpha = 1;
+    });
+
+    // SENT TO REVENUE HOUSE stamp
+    if (stamp) drawStamp(stamp.t, stamp.dur, 'SENT TO', 'REVENUE HOUSE', stamp);
+    if (state === 'ending') drawStamp(1.8 - endT, 99, 'CASES ARE NOW', 'TIME-BARRED', null);
+  }
+
+  function drawStamp(p, dur, small, big, info) {
+    const k = p < .18 ? 2.4 - (p / .18) * 1.4 : 1;
+    ctx.globalAlpha = p > dur - .3 ? clamp((dur - p) / .3, 0, 1) : clamp(p * 8, 0, 1);
+    const cx = W / 2, cy = H / 2 - 40, sc = Math.min(1, (W - 40) / 420);
+    if (info) {
+      const cw = Math.min(400, W - 32);
+      ctx.fillStyle = 'rgba(0,0,0,.3)'; rr(ctx, cx - cw / 2 + 2, cy + 54, cw, 84, 14); ctx.fill();
+      ctx.fillStyle = PAPER; rr(ctx, cx - cw / 2, cy + 50, cw, 84, 14); ctx.fill();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = INK; ctx.font = `800 18px ${DISPLAY}`; ctx.fillText(info.name, cx, cy + 74);
+      ctx.font = `600 13px ${UI}`; ctx.fillStyle = '#4a5164'; ctx.fillText(info.offence + '  ·  Recovered ' + money(info.val), cx, cy + 98);
+      ctx.font = `500 10.5px "IBM Plex Mono", monospace`; ctx.fillStyle = info.mult > 1 ? '#b8741a' : '#8a8f9c'; ctx.fillText((info.mult > 1 ? `STREAK BONUS \u00d7${info.mult}  \u00b7  ` : '') + 'CASE REF ' + info.ref, cx, cy + 118);
+    }
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(-.09); ctx.scale(k * sc, k * sc);
+    ctx.fillStyle = 'rgba(247,241,227,.92)'; rr(ctx, -190, -48, 380, 92, 10); ctx.fill();
+    ctx.strokeStyle = RED; ctx.lineWidth = 5; rr(ctx, -184, -42, 368, 80, 8); ctx.stroke();
+    ctx.lineWidth = 1.5; rr(ctx, -176, -34, 352, 64, 5); ctx.stroke();
+    ctx.fillStyle = RED; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `800 14px ${UI}`; ctx.fillText(small.split('').join(' '), 0, -16);
+    ctx.font = `800 38px ${DISPLAY}`; ctx.fillText(big, 0, 14);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  // Title screen car illustration
+  const hero = $('hero'), hctx = hero.getContext('2d');
+  function drawHero() {
+    hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.clearRect(0, 0, 900, 150);
+    hctx.fillStyle = '#e9e0cc'; rr(hctx, 0, 0, 900, 150, 18); hctx.fill();
+    hctx.fillStyle = 'rgba(255,255,255,.7)'; for (let x = ((-t * 260) % 90) - 90; x < 900; x += 90) hctx.fillRect(x, 73, 46, 5);
+    drawVehicle(hctx, 450, 75, 0, 'sedan', '#d5d9de', 3.6, true);
+  }
+
+  // ================= Flow =================
+  function startGame() {
+    reset(); state = 'play';
+    cam.x = P.x; cam.y = P.y;
+    $('title').classList.add('hidden'); $('over').classList.add('hidden'); $('hud').classList.remove('hidden');
+    $('hudDriver').textContent = mode.name; $('hudDriver').parentElement.style.color = mode.color;
+    toast(`${mode.name} (${mode.rank}) and GST 009 are on the road!`, mode.color);
+  }
+  function showAppraisal() {
+    state = 'over'; overAt = performance.now();
+    for (const k in keys) keys[k] = false;
+    const tier = mode.pg.filter(v => score >= v).length;  // 0..4
+    const grade = 'PG ' + (tier + 1), remark = mode.remarks[tier];
+    $('apRef').textContent = 'Performance Appraisal · Confidential · Ref TMJ/2026/' + Math.floor(rand(10000, 99999));
+    $('apOfficer').textContent = `${mode.name} (${mode.rank})`;
+    $('apCases').textContent = cases;
+    $('apEscaped').textContent = stats.escaped;
+    $('apStreak').textContent = stats.bestStreak > 1 ? `${stats.bestStreak} in a row` : '\u2013';
+    $('apNotices').textContent = `${stats.hits} hit / ${stats.thrown} thrown`;
+    $('apBig').textContent = stats.biggest ? `${stats.biggest.name} (${money(stats.biggest.val)})` : '–';
+    $('apRev').textContent = money(score);
+    $('apGrade').textContent = 'Performance Grade: ' + grade;
+    $('apRemark').textContent = '“' + remark + '” — ' + mode.boss;
+    $('over').classList.remove('hidden'); $('hud').classList.add('hidden');
+  }
+
+  // ================= Input =================
+  const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
+  function selectMode(key) {
+    mode = MODES[key];
+    document.querySelectorAll('.mode').forEach(b => b.classList.toggle('sel', b.dataset.mode === key));
+    $('startName').textContent = mode.name;
+  }
+  document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', e => { e.currentTarget.blur(); selectMode(b.dataset.mode); }));
+  function toTitle() {
+    state = 'title';
+    $('over').classList.add('hidden'); $('hud').classList.add('hidden'); $('title').classList.remove('hidden');
+  }
+  function action() {
+    if (state === 'title') startGame();
+    else if (state === 'over') { if (performance.now() - overAt > 700) startGame(); }
+    else if (state === 'play') { if (bust) skipBust(); else throwNotice(); }
+  }
+  addEventListener('keydown', e => {
+    if (KEYMAP[e.code]) { keys[KEYMAP[e.code]] = true; e.preventDefault(); }
+    if (state === 'title') {
+      if (KEYMAP[e.code] === 'left' || e.code === 'Digit1') selectMode('ryan');
+      if (KEYMAP[e.code] === 'right' || e.code === 'Digit2') selectMode('kaspar');
+    }
+    if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); if (!e.repeat) action(); }
+  });
+  addEventListener('keyup', e => { if (KEYMAP[e.code]) keys[KEYMAP[e.code]] = false; });
+  addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+  $('startBtn').onclick = e => { e.currentTarget.blur(); startGame(); };
+  $('againBtn').onclick = e => { e.currentTarget.blur(); startGame(); };
+  $('changeBtn').onclick = e => { e.currentTarget.blur(); toTitle(); };
+
+  if (window.matchMedia('(pointer: coarse)').matches) $('touch').classList.remove('hidden');
+  document.querySelectorAll('#touch [data-k]').forEach(b => {
+    const k = b.dataset.k;
+    const on = e => { e.preventDefault(); keys[k] = true; b.classList.add('on'); };
+    const off = e => { e.preventDefault(); keys[k] = false; b.classList.remove('on'); };
+    b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off);
+    b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
+  });
+  $('tThrow').addEventListener('pointerdown', e => { e.preventDefault(); action(); });
+
+  // ================= Loop =================
+  reset();
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+    if (state === 'play' || state === 'ending') update(dt);
+    else updateFX(dt);
+
+    // Camera
+    let tx, ty, tz;
+    if (state === 'title') { tx = WORLD / 2 + Math.cos(t * .07) * 900; ty = WORLD / 2 + Math.sin(t * .05) * 700; tz = BASEZ * .85; }
+    else if (bust) { tx = (P.x + bust.s.x) / 2; ty = (P.y + bust.s.y) / 2; tz = BASEZ * 1.3; }
+    else { tx = P.x + Math.cos(P.a) * P.spd * .35; ty = P.y + Math.sin(P.a) * P.spd * .35; tz = BASEZ * (1 - .08 * clamp(P.spd / 300, 0, 1.4)); }
+    const ck = state === 'title' ? 1 : Math.min(1, dt * 5);
+    cam.x += (tx - cam.x) * ck; cam.y += (ty - cam.y) * ck; cam.z += (tz - cam.z) * Math.min(1, dt * 3);
+
+    draw(dt);
+    if (state !== 'title') updateHUD(dt); else drawHero();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
