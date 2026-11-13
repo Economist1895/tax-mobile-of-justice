@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Tax Mobile of Justice</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10,7 +12,7 @@
 <style>
   :root { --ink: #1b2333; --paper: #f7f1e3; --red: #d23a2f; --gold: #f2b705; --blue: #1f4e9c; --muted: #6b7184; }
   html, body { margin: 0; height: 100%; background: #2a3138; overflow: hidden; touch-action: none;
-    user-select: none; -webkit-user-select: none; font-family: Inter, "Segoe UI", system-ui, sans-serif; color: var(--ink); }
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; font-family: Inter, "Segoe UI", system-ui, sans-serif; color: var(--ink); }
   canvas#game { display: block; }
   #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 1;
     background: radial-gradient(ellipse at center, rgba(10,14,22,0) 50%, rgba(10,14,22,.4) 100%); }
@@ -18,7 +20,7 @@
   .mono { font-family: "IBM Plex Mono", "Courier New", monospace; font-size: 10.5px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
 
   /* HUD */
-  #hud { position: fixed; top: 14px; left: 14px; right: 14px; display: flex; justify-content: space-between;
+  #hud { position: fixed; top: max(14px, env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); right: max(14px, env(safe-area-inset-right)); display: flex; justify-content: space-between;
     align-items: flex-start; pointer-events: none; z-index: 5; gap: 12px; }
   .panel { background: var(--paper); border-radius: 14px; padding: 10px 14px 11px;
     box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 8px 24px rgba(0,0,0,.28); min-width: 170px; }
@@ -55,6 +57,8 @@
   .card h2 { font-family: Fraunces, Georgia, serif; font-weight: 800; font-size: 28px; margin: 8px 0 10px; }
   .card p { line-height: 1.55; margin: 10px 0; font-size: 15px; }
   #title .card { width: min(780px, calc(100% - 24px)); padding-bottom: 0; }
+  #over .card { padding-bottom: 0; }
+  @media (max-width: 560px) { #over td { padding: 6px 2px; font-size: 13.5px; } #over h2 { font-size: 24px; } }
   #title .card p { margin: 8px 0 0; }
   #hero { display: block; width: 100%; height: 58px; margin: 4px 0 0; }
   .startbar { position: sticky; bottom: 0; background: linear-gradient(rgba(247,241,227,0), var(--paper) 28%); padding: 10px 0 20px; }
@@ -96,14 +100,22 @@
   .remark { font-style: italic; color: #3b4356; border-left: 3px solid var(--red); padding-left: 12px; }
 
   /* Touch controls */
-  #touch { position: fixed; left: 0; right: 0; bottom: 16px; display: flex; justify-content: space-between; padding: 0 16px; z-index: 6; pointer-events: none; }
-  #touch .pad { display: flex; gap: 10px; pointer-events: auto; align-items: flex-end; }
-  #touch button { width: 64px; height: 64px; border-radius: 50%; border: none; background: rgba(247,241,227,.88);
-    font-size: 22px; color: var(--ink); box-shadow: 0 6px 16px rgba(0,0,0,.3); }
-  #touch button.big { width: 78px; height: 78px; background: var(--gold); font-size: 28px; }
-  #touch button.on { filter: brightness(.85); }
-  #touch .dpad { display: grid; grid-template-columns: repeat(3, 58px); grid-template-rows: repeat(3, 58px); gap: 4px; }
-  #touch .dpad button { width: 58px; height: 58px; border-radius: 16px; }
+  #touch { position: fixed; left: 0; right: 0; bottom: max(14px, env(safe-area-inset-bottom)); display: flex; justify-content: space-between;
+    align-items: flex-end; padding: 0 max(14px, env(safe-area-inset-left)) 0 max(14px, env(safe-area-inset-right)); z-index: 6; pointer-events: none; }
+  #touch .pad { pointer-events: auto; touch-action: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  #dpad { position: relative; width: min(172px, 42vmin); height: min(172px, 42vmin); border-radius: 50%;
+    background: rgba(247,241,227,.78); box-shadow: 0 8px 20px rgba(0,0,0,.3), inset 0 0 0 2px rgba(27,35,51,.12); }
+  #dpad .arr { position: absolute; font-size: 18px; color: rgba(27,35,51,.55); transform: translate(-50%, -50%); }
+  #dpad .u { left: 50%; top: 15%; } #dpad .d { left: 50%; top: 85%; } #dpad .l { left: 15%; top: 50%; } #dpad .r { left: 85%; top: 50%; }
+  #dpad .arr.on { color: var(--red); }
+  #knob { position: absolute; left: 50%; top: 50%; width: 38%; height: 38%; border-radius: 50%; background: var(--ink);
+    transform: translate(-50%, -50%); box-shadow: 0 4px 10px rgba(0,0,0,.35); transition: transform .05s; }
+  #tThrow { width: min(96px, 24vmin); height: min(96px, 24vmin); border-radius: 50%; border: none; background: var(--gold);
+    font-size: 30px; color: var(--ink); box-shadow: 0 8px 20px rgba(0,0,0,.3); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  #tThrow small { font: 800 11px Inter, sans-serif; margin-top: 2px; }
+  #tThrow:active { transform: scale(.94); }
+  .touch .kbd-only { display: none !important; }
+  html:not(.touch) .touch-only { display: none !important; }
 </style>
 </head>
 <body>
@@ -132,8 +144,10 @@
     <p>Tax evaders are fleeing across the city. Jump into the Tax Mobile of Justice (GST 009) and send as many as you can to <b>Revenue House</b> before the <b>60-second Time Bar</b> runs out.</p>
 
         <div class="controls2" style="margin-top:10px">
-      <div><span class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> or arrows: press the way you want to go</div>
-      <div><kbd class="wide" style="min-width:72px">Space</kbd> throw a Notice</div>
+      <div class="kbd-only"><span class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> or arrows: press the way you want to go</div>
+      <div class="touch-only">🕹️ Slide your thumb on the round pad (bottom left) towards the way you want to go</div>
+      <div class="touch-only">✉️ Tap the yellow button to throw a Notice</div>
+      <div class="kbd-only"><kbd class="wide" style="min-width:72px">Space</kbd> throw a Notice</div>
       <div style="font-weight:500;color:#4a5164">Tip: press a turn just before a junction and the car will take it for you.</div>
     </div>
     <div class="section">1 · Choose your officer</div>
@@ -163,13 +177,13 @@
     <div class="section">2 · How to play</div>
     <ol class="steps">
       <li><span class="ic">🎯</span><span><b>Find suspects.</b> Red arrows at the edge of the screen point to them, and they show as red dots on the minimap (top right).</span></li>
-      <li><span class="ic">🟡</span><span><b>Fill the gold ring to catch them.</b> Stay close to a suspect to fill it slowly, ram them to stun them, or throw a Notice with <kbd>Space</kbd> to fill it fast.</span></li>
+      <li><span class="ic">🟡</span><span><b>Fill the gold ring to catch them.</b> Stay close to a suspect to fill it slowly, ram them to stun them, or throw a Notice (<span class="kbd-only"><kbd>Space</kbd></span><span class="touch-only">✉️ button</span>) to fill it fast.</span></li>
       <li><span class="ic">✉️</span><span><b>Notices are limited.</b> Drive over the evidence suspects drop, or the ✉️ Notice stacks on the road, to get more.</span></li>
       <li><span class="ic">⏳</span><span><b>Every case has its own timer</b>, shown under the suspect's name. If it hits zero, the case is time-barred and they get away.</span></li>
-      <li><span class="ic">🍗</span><span><b>Extras:</b> chicken rice gives a speed boost, catching suspects back to back earns a streak bonus, and ERP gantries cost $2. Yes, even us.</span></li>
+      <li><span class="ic">🍗</span><span><b>Extras:</b> chicken rice gives a speed boost, and catching suspects back to back earns a streak bonus.</span></li>
     </ol>
 
-    <div class="startbar"><button class="btn" id="startBtn">Start Shift as <span id="startName" style="opacity:1;font-size:inherit;font-weight:800;margin:0">Ryan Li</span> <span>Space</span></button></div>
+    <div class="startbar"><button class="btn" id="startBtn">Start Shift as <span id="startName" style="opacity:1;font-size:inherit;font-weight:800;margin:0">Ryan Li</span> <span class="kbd-only">Space</span></button></div>
   </div>
 </div>
 
@@ -189,18 +203,17 @@
     </table>
     <div class="grade" id="apGrade"></div>
     <p class="remark" id="apRemark"></p>
-    <button class="btn" id="againBtn">Start New Shift <span>Space</span></button>
-    <button class="btn secondary" id="changeBtn">Change Officer</button>
+    <div class="startbar"><button class="btn" id="againBtn">Start New Shift <span class="kbd-only">Space</span></button>
+    <button class="btn secondary" id="changeBtn">Change Officer</button></div>
   </div>
 </div>
 
 <div id="touch" class="hidden">
-  <div class="pad dpad">
-    <button data-k="up" style="grid-area:1/2">▲</button>
-    <button data-k="left" style="grid-area:2/1">◀</button><button data-k="right" style="grid-area:2/3">▶</button>
-    <button data-k="down" style="grid-area:3/2">▼</button>
+  <div id="dpad" class="pad">
+    <span class="arr u">▲</span><span class="arr d">▼</span><span class="arr l">◀</span><span class="arr r">▶</span>
+    <div id="knob"></div>
   </div>
-  <div class="pad"><button id="tThrow" class="big">✉️</button></div>
+  <div class="pad"><button id="tThrow" class="big">✉️<small>Notice</small></button></div>
 </div>
 
 <script>
@@ -299,6 +312,9 @@
     return Math.random() < 0.5 ? { x: along, y: lane } : { x: lane, y: along };
   }
 
+  const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+  if (IS_TOUCH) document.documentElement.classList.add('touch');
+
   // ================= Canvas =================
   const cv = $('game'), ctx = cv.getContext('2d', { alpha: false });
   // Rendering more pixels than this per frame makes the game lag on retina/4K screens
@@ -352,11 +368,6 @@
       blocks.push(b);
     }
   })();
-  const GANTRIES = [
-    { h: true, i: 1, j: 3 }, { h: true, i: 4, j: 1 }, { h: true, i: 2, j: 5 },
-    { h: false, i: 2, j: 4 }, { h: false, i: 5, j: 2 }, { h: false, i: 0, j: 1 },
-  ].map(g => g.h ? { h: true, x: nodeX(g.i) + 250, y: nodeX(g.j) } : { h: false, x: nodeX(g.i), y: nodeX(g.j) + 250 });
-
   // ================= State =================
   let state = 'title', ammo = 0, stacks = [], P, suspects, items, rices, notices, particles, skids, floaters, toasts, stamp, bust;
   let score, shownScore, cases, timeLeft, nextSpawn, lastType, noticeCD, shake, endT, stats, streak, lastCatchAt, overAt = 0, t = 0;
@@ -377,7 +388,9 @@
   const progress = () => 1 - timeLeft / ROUND_TIME;  // 0 at start of shift, 1 at the end
   const toast = (text, color = INK) => { toasts.push({ text, color, t: 2.6 }); if (toasts.length > 3) toasts.shift(); };
   const floater = (x, y, text, color = INK) => floaters.push({ x, y, text, color, t: 1.5 });
+  const MAX_PARTICLES = 220;
   function burst(x, y, n, opts) {
+    n = Math.min(n, MAX_PARTICLES - particles.length);
     for (let i = 0; i < n; i++) {
       const a = rand(0, Math.PI * 2), s = rand(opts.spdMin || 40, opts.spd || 160);
       particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(.5, 1) * (opts.life || 1), max: opts.life || 1,
@@ -518,6 +531,7 @@
   // ---- Driving: press the direction you want to go (screen-relative) ----
   const DIRS = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
   const DIR_KEYS = ['up', 'down', 'left', 'right'];
+  const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' };
   const TURN_RATE = 10;       // how quickly the car swings round to face the new direction (radians/sec)
   const TURN_MEMORY = 0.7;    // seconds a turn pressed early is remembered
   let lastDir = null;         // most recently pressed direction key
@@ -525,12 +539,33 @@
   // Centre line of the nearest road running in that axis
   const laneCentre = v => nodeX(clamp(Math.round((v - T / 2) / (BLOCK * T)), 0, NODES - 1));
   function headingDir() { return ['right', 'down', 'left', 'up'][((Math.round(P.a / (Math.PI / 2)) % 4) + 4) % 4]; }
-  // Can the car head that way right now? (Lined up with a road going that way, and not a wall.)
+  // Can the car head that way right now?
+  //  - It must be on a road running that way. Anywhere across the road's width counts, so a car
+  //    resting against a wall can always drive off. Only a fast car arriving at a junction must be
+  //    close to the cross-road's centre before turning, so it doesn't clip the corner.
+  //  - The road ahead (checked along the lane centre, not the car's exact spot) must not be a wall.
+  const ROAD_HALF = T / 2;
   function canGo(dir) {
-    const a = DIRS[dir], horiz = dir === 'left' || dir === 'right';
-    const off = horiz ? Math.abs(P.y - laneCentre(P.y)) : Math.abs(P.x - laneCentre(P.x));
-    if (off > 34) return false;
-    return !solidAt(P.x + Math.cos(a) * 55, P.y + Math.sin(a) * 55);
+    const horiz = dir === 'left' || dir === 'right', sign = dir === 'right' || dir === 'down' ? 1 : -1;
+    const cx = laneCentre(P.x), cy = laneCentre(P.y);
+    const offSame = horiz ? Math.abs(P.y - cy) : Math.abs(P.x - cx);   // distance from the centre of a road running this way
+    const offOther = horiz ? Math.abs(P.x - cx) : Math.abs(P.y - cy);
+    const turningAtJunction = offOther < ROAD_HALF && P.spd > 60 && headingDir() !== dir && headingDir() !== OPPOSITE[dir];
+    if (offSame > (turningAtJunction ? 32 : ROAD_HALF)) return false;
+    const px = horiz ? P.x + sign * 60 : cx, py = horiz ? cy : P.y + sign * 60;
+    return !solidAt(px, py);
+  }
+
+  // Is there a junction ahead (travelling `along`) where turning `dir` will be possible?
+  function turnAhead(dir, along) {
+    const hAlong = along === 'left' || along === 'right', hDir = dir === 'left' || dir === 'right';
+    if (hAlong === hDir) return false;
+    const idx = v => (v - T / 2) / (BLOCK * T);                         // position in junction units
+    const road = Math.round(idx(hAlong ? laneCentre(P.y) : laneCentre(P.x)));
+    if ((dir === 'up' || dir === 'left') ? road === 0 : road === NODES - 1) return false;   // map edge
+    const pos = idx(hAlong ? P.x : P.y), fwd = along === 'right' || along === 'down';
+    const next = fwd ? Math.floor(pos + 0.01) + 1 : Math.ceil(pos - 0.01) - 1;
+    return next >= 0 && next < NODES;
   }
 
   // Every new direction press is remembered briefly, so even a quick tap before a junction works
@@ -554,7 +589,15 @@
     if (!want) for (const d of usable) if (canGo(d)) { want = d; break; }
     if (!want && P.lock && canGo(P.lock.dir)) want = P.lock.dir;   // stick with the turn just taken
     if (order.length && order[0] !== want && !(P.lock && order[0] !== lastDir)) P.queue = { dir: order[0], t: TURN_MEMORY, at: pressT[order[0]] || 0 };  // remember it for the next junction
-    if (!want && order.length && P.spd > 40 && canGo(headingDir())) want = headingDir();
+    // Pressed a turn that isn't possible here? Keep rolling (or start rolling) to the next junction where it is.
+    if (!want && order.length) {
+      // Try the two directions at right angles to the key pressed, the one closest to the car's heading first
+      const side = order[0] === 'up' || order[0] === 'down' ? ['left', 'right'] : ['up', 'down'];
+      side.sort((p, q) => Math.abs(lerpAngle(0, DIRS[p] - P.a, 1)) - Math.abs(lerpAngle(0, DIRS[q] - P.a, 1)));
+      for (const along of side) {
+        if (canGo(along) && (P.spd > 40 || turnAhead(order[0], along))) { want = along; break; }
+      }
+    }
 
     const maxS = P.boost > 0 ? 420 : 300;
     let err = 0;
@@ -573,14 +616,15 @@
     }
     P.spd = Math.max(0, P.spd);
 
-    // Lane assist: drift back to the middle of the road you're driving along
-    if (P.spd > 10) {
-      if (Math.abs(Math.cos(P.a)) > 0.9) {
-        const c = laneCentre(P.y), ny = P.y + (c - P.y) * Math.min(1, dt * 8);
-        if (Math.abs(c - P.y) < 45 && !circleSolid(P.x, ny, P.r)) P.y = ny;
-      } else if (Math.abs(Math.sin(P.a)) > 0.9) {
-        const c = laneCentre(P.x), nx = P.x + (c - P.x) * Math.min(1, dt * 8);
-        if (Math.abs(c - P.x) < 45 && !circleSolid(nx, P.y, P.r)) P.x = nx;
+    // Lane assist: glide to the middle of the road you're heading along
+    const laneDir = want || (P.spd > 10 ? headingDir() : null);
+    if (laneDir) {
+      if (laneDir === 'left' || laneDir === 'right') {
+        const c = laneCentre(P.y), ny = P.y + (c - P.y) * Math.min(1, dt * 9);
+        if (Math.abs(c - P.y) <= ROAD_HALF && !circleSolid(P.x, ny, P.r)) P.y = ny;
+      } else {
+        const c = laneCentre(P.x), nx = P.x + (c - P.x) * Math.min(1, dt * 9);
+        if (Math.abs(c - P.x) <= ROAD_HALF && !circleSolid(nx, P.y, P.r)) P.x = nx;
       }
     }
 
@@ -590,6 +634,15 @@
     if (!circleSolid(P.x + vx, P.y, P.r)) P.x += vx; else hit = true;
     if (!circleSolid(P.x, P.y + vy, P.r)) P.y += vy; else hit = true;
     if (hit) P.spd *= Math.pow(0.5, dt);   // walls slide you along rather than stopping you dead
+    // Safety net: pressing a key but not moving for 0.4s? Glide onto the nearest road centre line.
+    const movedNow = Math.hypot(P.x - P.px, P.y - P.py);
+    P.stuckT = held.length && movedNow < 0.5 ? (P.stuckT || 0) + dt : 0;
+    if (P.stuckT > 0.4) {
+      const cx = laneCentre(P.x), cy = laneCentre(P.y);
+      const target = Math.abs(P.x - cx) < Math.abs(P.y - cy) ? { x: cx, y: P.y } : { x: P.x, y: cy };
+      const k = Math.min(1, dt * 10), nx = P.x + (target.x - P.x) * k, ny = P.y + (target.y - P.y) * k;
+      P.x = nx; P.y = ny;   // centre lines are always open road, so this can't push into a wall
+    }
     if (P.boost > 0) { P.boost -= dt; if (Math.random() < .6) burst(P.x - Math.cos(P.a) * 24, P.y - Math.sin(P.a) * 24, 1, { colors: ['rgba(255,255,255,.55)'], spd: 30, life: .6, size: 8 }); }
 
     // Skid marks when swinging round a corner at speed
@@ -597,15 +650,11 @@
     if (P.rear && Math.abs(err) > 0.35 && P.spd > 170) {
       const nx = -Math.sin(P.a) * 9, ny = Math.cos(P.a) * 9;
       for (const s of [1, -1]) skids.push({ x1: P.rear.x + nx * s, y1: P.rear.y + ny * s, x2: rear.x + nx * s, y2: rear.y + ny * s, life: 5 });
-      if (skids.length > 500) skids.splice(0, 2);
+      if (skids.length > 240) skids.splice(0, 2);
     }
     P.rear = rear;
     if (!control) return;
 
-    for (const g of GANTRIES) {
-      const crossed = g.h ? Math.abs(P.y - g.y) < 55 && (P.px - g.x) * (P.x - g.x) < 0 : Math.abs(P.x - g.x) < 55 && (P.py - g.y) * (P.y - g.y) < 0;
-      if (crossed) { score = Math.max(0, score - 2); floater(P.x, P.y - 40, 'ERP −$2.00 · Even we pay ERP', BLUE); }
-    }
     for (const k of rices) if (Math.hypot(k.x - P.x, k.y - P.y) < 34) {
       P.boost = 3.5; P.spd += 90; toast('Chicken rice acquired. Morale restored, speed +40%', '#b8741a');
       burst(k.x, k.y, 12, { colors: ['#fff', '#f4d27a'], spd: 140, life: .6, size: 5 });
@@ -868,32 +917,50 @@
     ctx.drawImage(TREE_IMG, x - tr.r, y - tr.r, tr.r * 2, tr.r * 2);
   }
 
+  // Text measurements are cached; measuring text every frame is surprisingly slow
+  const MEASURE = new Map();
+  function textW(font, text) {
+    const key = font + '|' + text;
+    let w = MEASURE.get(key);
+    if (w === undefined) { ctx.font = font; w = ctx.measureText(text).width; if (MEASURE.size > 600) MEASURE.clear(); MEASURE.set(key, w); }
+    return w;
+  }
+  // Labels and bubbles live in the zoomed-out world; scale them up on small screens so they stay readable
+  let LS = 1;
   function pill(text, x, y, bg, fg, size = 13) {
-    ctx.font = `700 ${size}px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const w = ctx.measureText(text).width + 16, h = size + 10;
+    size *= LS;
+    const font = `700 ${size}px ${UI}`;
+    const w = textW(font, text) + 16 * LS, h = size + 10 * LS;
+    ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(0,0,0,.18)'; rr(ctx, x - w / 2 + 1, y - h / 2 + 2, w, h, h / 2); ctx.fill();
     ctx.fillStyle = bg; rr(ctx, x - w / 2, y - h / 2, w, h, h / 2); ctx.fill();
     ctx.fillStyle = fg; ctx.fillText(text, x, y + .5);
   }
+  const WRAP = new Map();
   function bubble(text, x, y, bg, fg, below = false, speaker = '') {
-    ctx.font = `600 14px ${UI}`;
-    const words = text.split(' '), lines = []; let line = '';
-    for (const wd of words) { const tst = line ? line + ' ' + wd : wd; if (ctx.measureText(tst).width > 210 && line) { lines.push(line); line = wd; } else line = tst; }
-    lines.push(line);
-    const lh = 18, padX = 12, top = speaker ? 16 : 0;
-    const w = Math.max(...lines.map(l => ctx.measureText(l).width), speaker ? ctx.measureText(speaker).width : 0) + padX * 2;
-    const h = lines.length * lh + 16 + top;
-    const bx = x - w / 2, by = below ? y + 12 : y - h - 12;
-    ctx.fillStyle = 'rgba(0,0,0,.2)'; rr(ctx, bx + 2, by + 3, w, h, 12); ctx.fill();
-    ctx.fillStyle = bg; rr(ctx, bx, by, w, h, 12); ctx.fill();
+    const k = LS, font = `600 ${14 * k}px ${UI}`, sfont = `800 ${11 * k}px ${UI}`, key = text + '|' + speaker + '|' + k;
+    let lay = WRAP.get(key);
+    if (!lay) {
+      const words = text.split(' '), lines = []; let line = '';
+      for (const wd of words) { const tst = line ? line + ' ' + wd : wd; if (textW(font, tst) > 210 * k && line) { lines.push(line); line = wd; } else line = tst; }
+      lines.push(line);
+      const w = Math.max(...lines.map(l => textW(font, l)), speaker ? textW(sfont, speaker.toUpperCase()) : 0) + 24 * k;
+      lay = { lines, w };
+      if (WRAP.size > 200) WRAP.clear();
+      WRAP.set(key, lay);
+    }
+    const lh = 18 * k, padX = 12 * k, top = speaker ? 16 * k : 0, w = lay.w, h = lay.lines.length * lh + 16 * k + top;
+    const bx = x - w / 2, by = below ? y + 12 * k : y - h - 12 * k;
+    ctx.fillStyle = 'rgba(0,0,0,.2)'; rr(ctx, bx + 2, by + 3, w, h, 12 * k); ctx.fill();
+    ctx.fillStyle = bg; rr(ctx, bx, by, w, h, 12 * k); ctx.fill();
     ctx.beginPath();
-    if (below) { ctx.moveTo(x - 8, by + 1); ctx.lineTo(x, by - 10); ctx.lineTo(x + 8, by + 1); }
-    else { ctx.moveTo(x - 8, by + h - 1); ctx.lineTo(x, by + h + 10); ctx.lineTo(x + 8, by + h - 1); }
+    if (below) { ctx.moveTo(x - 8 * k, by + 1); ctx.lineTo(x, by - 10 * k); ctx.lineTo(x + 8 * k, by + 1); }
+    else { ctx.moveTo(x - 8 * k, by + h - 1); ctx.lineTo(x, by + h + 10 * k); ctx.lineTo(x + 8 * k, by + h - 1); }
     ctx.fill();
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    if (speaker) { ctx.font = `800 11px ${UI}`; ctx.fillStyle = fg; ctx.globalAlpha *= .7; ctx.fillText(speaker.toUpperCase(), bx + padX, by + 9); ctx.globalAlpha /= .7; }
-    ctx.font = `600 14px ${UI}`; ctx.fillStyle = fg;
-    lines.forEach((l, i) => ctx.fillText(l, bx + padX, by + 9 + top + i * lh));
+    if (speaker) { ctx.font = sfont; ctx.fillStyle = fg; ctx.globalAlpha *= .7; ctx.fillText(speaker.toUpperCase(), bx + padX, by + 9 * k); ctx.globalAlpha /= .7; }
+    ctx.font = font; ctx.fillStyle = fg;
+    lay.lines.forEach((l, i) => ctx.fillText(l, bx + padX, by + 9 * k + top + i * lh));
   }
   function drawPerson(x, y, color, tt) {
     const bob = Math.sin(tt * 14) * 1.5;
@@ -915,6 +982,7 @@
     const cx = cam.x + sx, cy = cam.y + sy, x0 = cx - vw / 2, y0 = cy - vh / 2;
     const inView = (x, y, w, h, m = 160) => x < x0 + vw + m && x + w > x0 - m && y < y0 + vh + m && y + h > y0 - m;
 
+    LS = clamp(0.85 / z, 1, 1.7);
     ctx.save(); ctx.scale(z, z); ctx.translate(-x0, -y0);
 
     // Grass beyond the city edge, then the pre-drawn ground (only the visible part)
@@ -969,18 +1037,6 @@
       for (const tr of b.trees) drawTreeCanopy(tr, cx, cy);
     }
 
-    // ERP gantries (overhead)
-    for (const g of GANTRIES) {
-      if (!inView(g.x - 60, g.y - 60, 120, 120)) continue;
-      ctx.save(); ctx.translate(g.x, g.y); if (!g.h) ctx.rotate(Math.PI / 2);
-      ctx.fillStyle = 'rgba(15,20,30,.25)'; ctx.fillRect(4, -50, 12, 110);
-      ctx.fillStyle = '#555c66'; ctx.fillRect(-6, -60, 12, 6); ctx.fillRect(-6, 54, 12, 6);
-      ctx.fillStyle = '#2c6fb7'; rr(ctx, -8, -56, 16, 112, 3); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.font = `800 11px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.save(); ctx.rotate(-Math.PI / 2); ctx.fillText('ERP  $2.00', 0, 0); ctx.restore();
-      ctx.restore();
-    }
-
     // Particles
     for (const p of particles) {
       const a = clamp(p.life / p.max * 1.5, 0, 1);
@@ -1001,15 +1057,15 @@
       if (s.daze > 0) for (let i = 0; i < 3; i++) { const a = t * 6 + i * 2.1; pill('★', s.x + Math.cos(a) * 20, s.y - 26 + Math.sin(a) * 6, 'rgba(0,0,0,0)', GOLD, 14); }
       if (!bust || bust.s !== s) {
         const urgent = s.caseT < 6;
-        pill(s.ty.name + (s.gen ? ' (Sub)' : '') + '  \u23F3 ' + Math.ceil(s.caseT) + 's', s.x, s.y + 52,
+        pill(s.ty.name + (s.gen ? ' (Sub)' : '') + '  \u23F3 ' + Math.ceil(s.caseT) + 's', s.x, s.y + 40 + 12 * LS,
           urgent ? (Math.floor(t * 6) % 2 ? RED : '#8f1f18') : 'rgba(27,35,51,.88)', '#fff', 12);
         if (s.say) bubble(s.say.text, s.x, s.y - 30, '#fff', INK);
       }
     }
-    pill(mode.name + ' \u00b7 GST 009', P.x, P.y + 40, mode.color, '#fff', 12);
+    pill(mode.name + ' \u00b7 GST 009', P.x, P.y + 28 + 12 * LS, mode.color, '#fff', 12);
     if (bust) {
       if (bust.t > 0.3 && !bust.stamped) bubble(bust.excuse, bust.s.x, bust.s.y - 34, '#fff', INK, false, bust.s.ty.name);
-      if (bust.t > 1.1 && !bust.stamped) bubble(bust.reply, P.x, P.y + 52, mode.color, '#fff', true, mode.name);
+      if (bust.t > 1.1 && !bust.stamped) bubble(bust.reply, P.x, P.y + 40 + 14 * LS, mode.color, '#fff', true, mode.name);
     }
     for (const f of floaters) { ctx.globalAlpha = clamp(f.t * 2, 0, 1); pill(f.text, f.x, f.y, '#fff', f.color, 12); ctx.globalAlpha = 1; }
     ctx.restore();
@@ -1020,7 +1076,7 @@
     // Cinematic bars during a bust
     const barH = bust ? Math.min(1, bust.t * 4) * 54 : 0;
     if (barH) { ctx.fillStyle = '#0c0f15'; ctx.fillRect(0, 0, W, barH); ctx.fillRect(0, H - barH, W, barH);
-      if (bust.t > 0.6 && bust.t < 2.0) { ctx.fillStyle = 'rgba(247,241,227,.6)'; ctx.font = `600 12px ${UI}`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText('SPACE TO SKIP', W - 18, H - barH / 2); } }
+      if (bust.t > 0.6 && bust.t < 2.0) { ctx.fillStyle = 'rgba(247,241,227,.6)'; ctx.font = `600 12px ${UI}`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(IS_TOUCH ? 'TAP \u2709\uFE0F TO SKIP' : 'SPACE TO SKIP', W - 18, H - barH / 2); } }
 
     if (state === 'play' && !bust) {
       for (const s of suspects) {
@@ -1057,8 +1113,8 @@
     // Toasts
     toasts.forEach((x, i) => {
       ctx.globalAlpha = clamp(x.t * 2, 0, 1);
-      ctx.font = `700 15px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const w = ctx.measureText(x.text).width + 30, y = (W < 760 ? 140 : 40) + barH + i * 40;
+      ctx.font = `700 ${W < 480 ? 12.5 : 15}px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const w = Math.min(W - 16, ctx.measureText(x.text).width + 30), y = (W < 760 ? 140 : 40) + barH + i * 40;
       ctx.fillStyle = 'rgba(0,0,0,.25)'; rr(ctx, W / 2 - w / 2 + 1, y - 16 + 3, w, 32, 16); ctx.fill();
       ctx.fillStyle = PAPER; rr(ctx, W / 2 - w / 2, y - 16, w, 32, 16); ctx.fill();
       ctx.fillStyle = x.color; ctx.fillText(x.text, W / 2, y + 1);
@@ -1080,7 +1136,7 @@
       ctx.fillStyle = PAPER; rr(ctx, cx - cw / 2, cy + 50, cw, 84, 14); ctx.fill();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillStyle = INK; ctx.font = `800 18px ${DISPLAY}`; ctx.fillText(info.name, cx, cy + 74);
-      ctx.font = `600 13px ${UI}`; ctx.fillStyle = '#4a5164'; ctx.fillText(info.offence + '  ·  Recovered ' + money(info.val), cx, cy + 98);
+      ctx.font = `600 ${W < 480 ? 11 : 13}px ${UI}`; ctx.fillStyle = '#4a5164'; ctx.fillText(info.offence + '  ·  Recovered ' + money(info.val), cx, cy + 98);
       ctx.font = `500 10.5px "IBM Plex Mono", monospace`; ctx.fillStyle = info.mult > 1 ? '#b8741a' : '#8a8f9c'; ctx.fillText((info.mult > 1 ? `STREAK BONUS \u00d7${info.mult}  \u00b7  ` : '') + 'CASE REF ' + info.ref, cx, cy + 118);
     }
     ctx.save(); ctx.translate(cx, cy); ctx.rotate(-.09); ctx.scale(k * sc, k * sc);
@@ -1107,7 +1163,7 @@
   function startGame() {
     reset(); state = 'play';
     cam.x = P.x; cam.y = P.y;
-    $('title').classList.add('hidden'); $('over').classList.add('hidden'); $('hud').classList.remove('hidden');
+    $('title').classList.add('hidden'); $('over').classList.add('hidden'); $('hud').classList.remove('hidden'); showTouch(true);
     $('hudDriver').textContent = mode.name; $('hudDriver').parentElement.style.color = mode.color;
     toast(`${mode.name} (${mode.rank}) and GST 009 are on the road!`, mode.color);
   }
@@ -1126,7 +1182,7 @@
     $('apRev').textContent = money(score);
     $('apGrade').textContent = 'Performance Grade: ' + grade;
     $('apRemark').textContent = '“' + remark + '” — ' + mode.boss;
-    $('over').classList.remove('hidden'); $('hud').classList.add('hidden');
+    $('over').classList.remove('hidden'); $('hud').classList.add('hidden'); showTouch(false); padEnd();
   }
 
   // ================= Input =================
@@ -1160,15 +1216,28 @@
   $('againBtn').onclick = e => { e.currentTarget.blur(); startGame(); };
   $('changeBtn').onclick = e => { e.currentTarget.blur(); toTitle(); };
 
-  if (window.matchMedia('(pointer: coarse)').matches) $('touch').classList.remove('hidden');
-  document.querySelectorAll('#touch [data-k]').forEach(b => {
-    const k = b.dataset.k;
-    const on = e => { e.preventDefault(); if (!keys[k]) rememberTurn(k); keys[k] = true; b.classList.add('on'); };
-    const off = e => { e.preventDefault(); keys[k] = false; b.classList.remove('on'); };
-    b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off);
-    b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
-  });
+  // ---- Touch controls ----
+  const dpad = $('dpad'), knob = $('knob');
+  let padDir = null;
+  function setPad(dir) {
+    if (dir === padDir) return;
+    if (padDir) keys[padDir] = false;
+    if (dir) { rememberTurn(dir); keys[dir] = true; }
+    padDir = dir;
+    dpad.querySelectorAll('.arr').forEach(a => a.classList.toggle('on', !!dir && a.classList.contains(dir[0])));
+  }
+  function padMove(e) {
+    const r = dpad.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    const rad = r.width / 2, d = Math.hypot(dx, dy), m = Math.min(d, rad * 0.55) / (d || 1);
+    knob.style.transform = `translate(calc(-50% + ${dx * m}px), calc(-50% + ${dy * m}px))`;
+    setPad(d < rad * 0.18 ? null : Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+  }
+  function padEnd() { knob.style.transform = 'translate(-50%, -50%)'; setPad(null); }
+  dpad.addEventListener('pointerdown', e => { e.preventDefault(); dpad.setPointerCapture(e.pointerId); padMove(e); });
+  dpad.addEventListener('pointermove', e => { if (dpad.hasPointerCapture(e.pointerId)) padMove(e); });
+  dpad.addEventListener('pointerup', padEnd); dpad.addEventListener('pointercancel', padEnd);
   $('tThrow').addEventListener('pointerdown', e => { e.preventDefault(); action(); });
+  const showTouch = on => $('touch').classList.toggle('hidden', !(on && IS_TOUCH));
 
   // ================= Pre-rendering (done once, so frames stay cheap) =================
   let GROUND = null, TREE_IMG = null;
@@ -1217,7 +1286,7 @@
 
   // Each building's roof (parapet, water tanks, block number) becomes a small image.
   function buildBuildingSprites() {
-    const RS = 1.5;
+    const RS = IS_TOUCH ? 1 : 1.25;
     for (const b of blocks) for (const bd of b.buildings) {
       bd.faceN = shade(bd.roof, .72); bd.faceS = shade(bd.roof, .9); bd.faceW = shade(bd.roof, .8); bd.faceE = shade(bd.roof, .95);
       bd.floors = Math.max(3, Math.round(bd.H / 13));
