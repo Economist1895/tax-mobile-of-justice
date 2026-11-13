@@ -12,6 +12,8 @@
   html, body { margin: 0; height: 100%; background: #2a3138; overflow: hidden; touch-action: none;
     user-select: none; -webkit-user-select: none; font-family: Inter, "Segoe UI", system-ui, sans-serif; color: var(--ink); }
   canvas#game { display: block; }
+  #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    background: radial-gradient(ellipse at center, rgba(10,14,22,0) 50%, rgba(10,14,22,.4) 100%); }
   .hidden { display: none !important; }
   .mono { font-family: "IBM Plex Mono", "Courier New", monospace; font-size: 10.5px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
 
@@ -100,10 +102,13 @@
     font-size: 22px; color: var(--ink); box-shadow: 0 6px 16px rgba(0,0,0,.3); }
   #touch button.big { width: 78px; height: 78px; background: var(--gold); font-size: 28px; }
   #touch button.on { filter: brightness(.85); }
+  #touch .dpad { display: grid; grid-template-columns: repeat(3, 58px); grid-template-rows: repeat(3, 58px); gap: 4px; }
+  #touch .dpad button { width: 58px; height: 58px; border-radius: 16px; }
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
+<div id="vignette"></div>
 
 <div id="hud" class="hidden">
   <div class="panel">
@@ -127,8 +132,9 @@
     <p>Tax evaders are fleeing across the city. Jump into the Tax Mobile of Justice (GST 009) and send as many as you can to <b>Revenue House</b> before the <b>60-second Time Bar</b> runs out.</p>
 
         <div class="controls2" style="margin-top:10px">
-      <div><span class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> or arrow keys to drive</div>
+      <div><span class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> or arrows: press the way you want to go</div>
       <div><kbd class="wide" style="min-width:72px">Space</kbd> throw a Notice</div>
+      <div style="font-weight:500;color:#4a5164">Tip: press a turn just before a junction and the car will take it for you.</div>
     </div>
     <div class="section">1 · Choose your officer</div>
     <div class="modes">
@@ -189,8 +195,12 @@
 </div>
 
 <div id="touch" class="hidden">
-  <div class="pad"><button data-k="left">◀</button><button data-k="right">▶</button></div>
-  <div class="pad"><button data-k="down">▼</button><button data-k="up">▲</button><button id="tThrow" class="big">✉️</button></div>
+  <div class="pad dpad">
+    <button data-k="up" style="grid-area:1/2">▲</button>
+    <button data-k="left" style="grid-area:2/1">◀</button><button data-k="right" style="grid-area:2/3">▶</button>
+    <button data-k="down" style="grid-area:3/2">▼</button>
+  </div>
+  <div class="pad"><button id="tThrow" class="big">✉️</button></div>
 </div>
 
 <script>
@@ -290,24 +300,28 @@
   }
 
   // ================= Canvas =================
-  const cv = $('game'), ctx = cv.getContext('2d');
+  const cv = $('game'), ctx = cv.getContext('2d', { alpha: false });
+  // Rendering more pixels than this per frame makes the game lag on retina/4K screens
+  const PIXEL_BUDGET = 2.4e6;
   let W = 0, H = 0, DPR = 1, BASEZ = 1;
   function resize() {
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
     W = innerWidth; H = innerHeight;
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    if (W * H * DPR * DPR > PIXEL_BUDGET) DPR = Math.max(1, Math.sqrt(PIXEL_BUDGET / (W * H)));
     cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
     cv.style.width = W + 'px'; cv.style.height = H + 'px';
     BASEZ = clamp(Math.min(W, H) / 760, 0.55, 1.05);
+    miniCache = null;
   }
+  let miniCache = null;
   addEventListener('resize', resize); resize();
 
-  function makePattern(base, n, alpha) {
+  function makePattern(base, n, alpha, target = ctx) {
     const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
     g.fillStyle = base; g.fillRect(0, 0, 128, 128);
     for (let i = 0; i < n; i++) { const v = Math.random() < .5 ? 255 : 0; g.fillStyle = `rgba(${v},${v},${v},${Math.random() * alpha})`; g.fillRect(Math.random() * 128, Math.random() * 128, 1 + Math.random() * 1.5, 1 + Math.random() * 1.5); }
-    return ctx.createPattern(c, 'repeat');
+    return target.createPattern(c, 'repeat');
   }
-  const PAT_ROAD = makePattern('#3e444d', 1400, .10), PAT_PAVE = makePattern('#ddd4c2', 700, .07), PAT_GRASS = makePattern('#7fb068', 900, .12);
 
   // ================= City (fixed layout) =================
   const ROOFS = ['#f3e2c0', '#dfe9ef', '#f4d3c0', '#d9e8d2', '#e9e2f3', '#f6e7a8', '#efd5dc', '#e7ecd9'];
@@ -350,7 +364,7 @@
   const keys = { up: false, down: false, left: false, right: false };
 
   function reset() {
-    P = { x: nodeX(3), y: nodeX(3), a: -Math.PI / 2, spd: 0, r: 15, boost: 0, px: 0, py: 0, rear: null };
+    P = { x: nodeX(3), y: nodeX(3), a: -Math.PI / 2, spd: 0, r: 15, boost: 0, px: 0, py: 0, rear: null, queue: null, lock: null };
     suspects = []; items = []; rices = []; notices = []; particles = []; skids = []; floaters = []; toasts = [];
     stamp = null; bust = null; score = 0; shownScore = 0; cases = 0; timeLeft = ROUND_TIME; nextSpawn = 0.8;
     lastType = null; noticeCD = 0; shake = 0; streak = 0; lastCatchAt = -99;
@@ -501,19 +515,73 @@
   }
 
   // ================= Player =================
+  // ---- Driving: press the direction you want to go (screen-relative) ----
+  const DIRS = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
+  const DIR_KEYS = ['up', 'down', 'left', 'right'];
+  const TURN_RATE = 10;       // how quickly the car swings round to face the new direction (radians/sec)
+  const TURN_MEMORY = 0.7;    // seconds a turn pressed early is remembered
+  let lastDir = null;         // most recently pressed direction key
+  const pressT = {};          // when each direction key was pressed
+  // Centre line of the nearest road running in that axis
+  const laneCentre = v => nodeX(clamp(Math.round((v - T / 2) / (BLOCK * T)), 0, NODES - 1));
+  function headingDir() { return ['right', 'down', 'left', 'up'][((Math.round(P.a / (Math.PI / 2)) % 4) + 4) % 4]; }
+  // Can the car head that way right now? (Lined up with a road going that way, and not a wall.)
+  function canGo(dir) {
+    const a = DIRS[dir], horiz = dir === 'left' || dir === 'right';
+    const off = horiz ? Math.abs(P.y - laneCentre(P.y)) : Math.abs(P.x - laneCentre(P.x));
+    if (off > 34) return false;
+    return !solidAt(P.x + Math.cos(a) * 55, P.y + Math.sin(a) * 55);
+  }
+
+  // Every new direction press is remembered briefly, so even a quick tap before a junction works
+  function rememberTurn(dir) {
+    lastDir = dir; pressT[dir] = performance.now();
+    if (state === 'play' && P) P.queue = { dir, t: TURN_MEMORY, at: pressT[dir] };
+  }
+
   function updatePlayer(dt, control) {
-    const up = control && keys.up, dn = control && keys.down, steer = control ? (keys.right ? 1 : 0) - (keys.left ? 1 : 0) : 0;
+    const held = control ? DIR_KEYS.filter(d => keys[d]) : [];
+    const order = held.slice().sort((a, b) => (b === lastDir) - (a === lastDir));  // newest key first
+    if (P.queue && (P.queue.t -= dt) <= 0) P.queue = null;
+    if (P.lock && (P.lock.t -= dt) <= 0) P.lock = null;
+    // Right after taking a remembered turn, ignore keys that were pressed before it
+    const usable = order.filter(d => !(P.lock && (pressT[d] || 0) < P.lock.at));
+
+    // Decide which way to go: a remembered turn as soon as it is possible,
+    // otherwise the newest key that can be taken, otherwise keep rolling along the road.
+    let want = null;
+    if (P.queue && P.spd > 20 && canGo(P.queue.dir)) { want = P.queue.dir; P.lock = { at: P.queue.at, dir: want, t: 0.5 }; P.queue = null; }
+    if (!want) for (const d of usable) if (canGo(d)) { want = d; break; }
+    if (!want && P.lock && canGo(P.lock.dir)) want = P.lock.dir;   // stick with the turn just taken
+    if (order.length && order[0] !== want && !(P.lock && order[0] !== lastDir)) P.queue = { dir: order[0], t: TURN_MEMORY, at: pressT[order[0]] || 0 };  // remember it for the next junction
+    if (!want && order.length && P.spd > 40 && canGo(headingDir())) want = headingDir();
+
     const maxS = P.boost > 0 ? 420 : 300;
-    if (up) P.spd += 400 * dt;
-    else if (dn) P.spd -= (P.spd > 0 ? 700 : 300) * dt;
-    else P.spd -= P.spd * (control ? 1.2 : 4) * dt;
-    if (P.spd > maxS) P.spd = Math.max(maxS, P.spd - 500 * dt);
-    P.spd = Math.max(P.spd, -150);
-    P.a += steer * 3.3 * clamp(P.spd / 100, -1, 1) * dt;
-    // Driving assist: when not steering, gently straighten up along the road
-    if (!steer && Math.abs(P.spd) > 60) {
-      const axis = Math.round(P.a / (Math.PI / 2)) * (Math.PI / 2), diff = axis - P.a;
-      if (Math.abs(diff) < 0.4) P.a += diff * Math.min(1, dt * 6);
+    let err = 0;
+    if (want) {
+      err = lerpAngle(0, DIRS[want] - P.a, 1);
+      if (Math.abs(err) > 2.3 && P.spd > 80) {   // reversing: quick handbrake U-turn on the spot
+        P.spd = 80; burst(P.x, P.y, 6, { colors: ['rgba(255,255,255,.5)'], spd: 60, life: .5, size: 8 });
+      }
+      P.a += clamp(err, -TURN_RATE * dt, TURN_RATE * dt);
+    }
+    if (order.length && want) {
+      const top = maxS * (1 - 0.55 * Math.min(1, Math.abs(err) / (Math.PI / 2)));  // ease off while turning
+      P.spd = P.spd < top ? Math.min(top, P.spd + 480 * dt) : Math.max(top, P.spd - 600 * dt);
+    } else {
+      P.spd -= P.spd * (control ? 2.4 : 4) * dt;   // let go = coast to a stop
+    }
+    P.spd = Math.max(0, P.spd);
+
+    // Lane assist: drift back to the middle of the road you're driving along
+    if (P.spd > 10) {
+      if (Math.abs(Math.cos(P.a)) > 0.9) {
+        const c = laneCentre(P.y), ny = P.y + (c - P.y) * Math.min(1, dt * 8);
+        if (Math.abs(c - P.y) < 45 && !circleSolid(P.x, ny, P.r)) P.y = ny;
+      } else if (Math.abs(Math.sin(P.a)) > 0.9) {
+        const c = laneCentre(P.x), nx = P.x + (c - P.x) * Math.min(1, dt * 8);
+        if (Math.abs(c - P.x) < 45 && !circleSolid(nx, P.y, P.r)) P.x = nx;
+      }
     }
 
     P.px = P.x; P.py = P.y;
@@ -521,12 +589,12 @@
     let hit = false;
     if (!circleSolid(P.x + vx, P.y, P.r)) P.x += vx; else hit = true;
     if (!circleSolid(P.x, P.y + vy, P.r)) P.y += vy; else hit = true;
-    if (hit) P.spd *= Math.pow(0.25, dt);
+    if (hit) P.spd *= Math.pow(0.5, dt);   // walls slide you along rather than stopping you dead
     if (P.boost > 0) { P.boost -= dt; if (Math.random() < .6) burst(P.x - Math.cos(P.a) * 24, P.y - Math.sin(P.a) * 24, 1, { colors: ['rgba(255,255,255,.55)'], spd: 30, life: .6, size: 8 }); }
 
-    // Skid marks when turning hard at speed
+    // Skid marks when swinging round a corner at speed
     const rear = { x: P.x - Math.cos(P.a) * 15, y: P.y - Math.sin(P.a) * 15 };
-    if (P.rear && ((steer && Math.abs(P.spd) > 190) || (dn && P.spd > 150))) {
+    if (P.rear && Math.abs(err) > 0.35 && P.spd > 170) {
       const nx = -Math.sin(P.a) * 9, ny = Math.cos(P.a) * 9;
       for (const s of [1, -1]) skids.push({ x1: P.rear.x + nx * s, y1: P.rear.y + ny * s, x2: rear.x + nx * s, y2: rear.y + ny * s, life: 5 });
       if (skids.length > 500) skids.splice(0, 2);
@@ -641,19 +709,29 @@
     tickSpawn(dt);
   }
 
+  const hudCache = {};
+  function setHUD(id, prop, value) {
+    const key = id + prop;
+    if (hudCache[key] === value) return;
+    hudCache[key] = value;
+    if (prop === 'text') $(id).textContent = value;
+    else if (prop === 'width') $(id).style.width = value;
+    else if (prop === 'urgent') $(id).classList.toggle('urgent', value);
+  }
   function updateHUD(dt) {
     shownScore += (score - shownScore) * Math.min(1, dt * 8);
     if (Math.abs(score - shownScore) < 1) shownScore = score;
-    $('rev').textContent = money(shownScore);
-    $('cases').textContent = cases + (cases === 1 ? ' case' : ' cases');
-    $('ammo').textContent = '\u2709'.repeat(ammo) + '\u25cb'.repeat(mode.maxNotices - ammo);
+    setHUD('rev', 'text', money(shownScore));
+    setHUD('cases', 'text', cases + (cases === 1 ? ' case' : ' cases'));
+    setHUD('ammo', 'text', '\u2709'.repeat(ammo) + '\u25cb'.repeat(mode.maxNotices - ammo));
     const sec = Math.ceil(timeLeft);
-    $('time').textContent = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
-    $('time').classList.toggle('urgent', timeLeft <= 10 && state === 'play');
-    $('timebar').style.width = (timeLeft / ROUND_TIME * 100) + '%';
+    setHUD('time', 'text', Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'));
+    setHUD('time', 'urgent', timeLeft <= 10 && state === 'play');
+    setHUD('timebar', 'width', (Math.round(timeLeft / ROUND_TIME * 200) / 2) + '%');
   }
 
   // ================= Drawing: vehicles & props =================
+  const GRADS = new Map();
   function drawVehicle(c, x, y, a, kind, color, sc, player) {
     const [l0, w0] = DIMS[kind], L = l0 * sc, Wd = w0 * sc;
     c.save(); c.translate(x, y);
@@ -663,8 +741,13 @@
       c.fillStyle = '#15181d'; const wl = L * .17, ww = 3.2 * sc;
       for (const f of [L * .29, -L * .29]) { rr(c, f - wl / 2, -Wd / 2 - ww + 1, wl, ww, 1.5); c.fill(); rr(c, f - wl / 2, Wd / 2 - 1, wl, ww, 1.5); c.fill(); }
     }
-    const grad = c.createLinearGradient(0, -Wd / 2, 0, Wd / 2);
-    grad.addColorStop(0, shade(color, .82)); grad.addColorStop(.45, shade(color, 1.1)); grad.addColorStop(1, shade(color, .78));
+    const gk = color + '|' + Wd;
+    let grad = c === ctx ? GRADS.get(gk) : null;
+    if (!grad) {
+      grad = c.createLinearGradient(0, -Wd / 2, 0, Wd / 2);
+      grad.addColorStop(0, shade(color, .82)); grad.addColorStop(.45, shade(color, 1.1)); grad.addColorStop(1, shade(color, .78));
+      if (c === ctx) GRADS.set(gk, grad);
+    }
     const glass = '#253140';
 
     if (kind === 'truck') {
@@ -763,37 +846,26 @@
 
   function drawBuilding(b, ccx, ccy) {
     const k = b.H / 950, ox = (b.x + b.w / 2 - ccx) * k, oy = (b.y + b.h / 2 - ccy) * k;
-    const { x, y, w, h } = b, floors = Math.max(3, Math.round(b.H / 13));
+    const { x, y, w, h } = b;
     ctx.fillStyle = b.wall; ctx.fillRect(x, y, w, h);
-    const face = (x1, y1, x2, y2, col) => {
+    // Only the two walls facing the camera can be seen; the roof covers the others
+    const faces = [];
+    faces.push(oy > 0 ? [x, y, x + w, y, b.faceN] : [x, y + h, x + w, y + h, b.faceS]);
+    faces.push(ox > 0 ? [x, y, x, y + h, b.faceW] : [x + w, y, x + w, y + h, b.faceE]);
+    for (const [x1, y1, x2, y2, col] of faces) {
       ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x2 + ox, y2 + oy); ctx.lineTo(x1 + ox, y1 + oy); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(40,40,60,.10)'; ctx.lineWidth = 1.2; ctx.beginPath();
-      for (let i = 1; i < floors; i++) { const f = i / floors; ctx.moveTo(x1 + ox * f, y1 + oy * f); ctx.lineTo(x2 + ox * f, y2 + oy * f); }
-      ctx.stroke();
-    };
-    face(x, y, x + w, y, shade(b.roof, .72));
-    face(x, y + h, x + w, y + h, shade(b.roof, .9));
-    face(x, y, x, y + h, shade(b.roof, .8));
-    face(x + w, y, x + w, y + h, shade(b.roof, .95));
-    const rx = x + ox, ry = y + oy;
-    ctx.fillStyle = b.roof; ctx.fillRect(rx, ry, w, h);
-    ctx.strokeStyle = 'rgba(0,0,0,.09)'; ctx.lineWidth = 3; ctx.strokeRect(rx + 5, ry + 5, w - 10, h - 10);
-    const R = mulberry32(b.seed);
-    for (let i = 0; i < 2; i++) {
-      const tx = rx + 16 + R() * (w - 50), ty = ry + 16 + R() * (h - 44);
-      ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.fillRect(tx + 3, ty + 3, 22, 16);
-      ctx.fillStyle = '#c9ced6'; ctx.fillRect(tx, ty, 22, 16);
-      ctx.fillStyle = '#aeb4be'; ctx.fillRect(tx + 2, ty + 2, 18, 4);
     }
-    ctx.fillStyle = 'rgba(27,35,51,.28)'; ctx.font = `800 ${Math.min(22, w / 5)}px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(b.num, rx + w / 2, ry + h / 2 + 8);
+    ctx.strokeStyle = 'rgba(40,40,60,.10)'; ctx.lineWidth = 1.2; ctx.beginPath();
+    for (const [x1, y1, x2, y2] of faces) for (let i = 1; i < b.floors; i++) {
+      const f = i / b.floors; ctx.moveTo(x1 + ox * f, y1 + oy * f); ctx.lineTo(x2 + ox * f, y2 + oy * f);
+    }
+    ctx.stroke();
+    ctx.drawImage(b.img, x + ox, y + oy, w, h);
   }
 
   function drawTreeCanopy(tr, ccx, ccy) {
     const k = tr.H / 950, x = tr.x + (tr.x - ccx) * k, y = tr.y + (tr.y - ccy) * k;
-    ctx.fillStyle = '#3f7f43'; ctx.beginPath(); ctx.arc(x, y, tr.r, 0, 7); ctx.fill();
-    ctx.fillStyle = '#58a15a'; ctx.beginPath(); ctx.arc(x - tr.r * .25, y - tr.r * .25, tr.r * .62, 0, 7); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.beginPath(); ctx.arc(x - tr.r * .4, y - tr.r * .4, tr.r * .25, 0, 7); ctx.fill();
+    ctx.drawImage(TREE_IMG, x - tr.r, y - tr.r, tr.r * 2, tr.r * 2);
   }
 
   function pill(text, x, y, bg, fg, size = 13) {
@@ -845,53 +917,18 @@
 
     ctx.save(); ctx.scale(z, z); ctx.translate(-x0, -y0);
 
-    // Greenery beyond the city edge
-    ctx.fillStyle = PAT_GRASS; ctx.fillRect(-2500, -2500, WORLD + 5000, WORLD + 5000);
-    ctx.fillStyle = 'rgba(20,40,25,.35)'; ctx.fillRect(-2500, -2500, WORLD + 5000, WORLD + 5000);
-    // Roads
-    ctx.fillStyle = PAT_ROAD; ctx.fillRect(0, 0, WORLD, WORLD);
-    ctx.fillStyle = 'rgba(255,255,255,.55)';
-    for (let i = 0; i < NODES; i++) for (let k = 0; k < NODES - 1; k++) {
-      const c = nodeX(i), a = nodeX(k) + T / 2, b = nodeX(k + 1) - T / 2;
-      ctx.fillRect(a, c - T / 2 + 7, b - a, 2); ctx.fillRect(a, c + T / 2 - 9, b - a, 2);
-      ctx.fillRect(c - T / 2 + 7, a, 2, b - a); ctx.fillRect(c + T / 2 - 9, a, 2, b - a);
-    }
-    ctx.fillStyle = 'rgba(246,212,90,.75)';
-    for (let i = 0; i < NODES; i++) for (let k = 0; k < NODES - 1; k++) {
-      const c = nodeX(i), a = nodeX(k) + T / 2 + 30, b = nodeX(k + 1) - T / 2 - 30;
-      for (let d = a; d < b; d += 44) { ctx.fillRect(d, c - 1.5, Math.min(24, b - d), 3); ctx.fillRect(c - 1.5, d, 3, Math.min(24, b - d)); }
-    }
-    ctx.fillStyle = 'rgba(255,255,255,.6)';
-    for (let i = 0; i < NODES; i++) for (let j = 0; j < NODES; j++) {
-      const nx = nodeX(i), ny = nodeX(j);
-      if (!inView(nx - 100, ny - 100, 200, 200)) continue;
-      for (let s = -T / 2 + 12; s < T / 2 - 12; s += 11) {
-        if (i < NODES - 1) ctx.fillRect(nx + T / 2 + 6, ny + s, 16, 6);
-        if (i > 0) ctx.fillRect(nx - T / 2 - 22, ny + s, 16, 6);
-        if (j < NODES - 1) ctx.fillRect(nx + s, ny + T / 2 + 6, 6, 16);
-        if (j > 0) ctx.fillRect(nx + s, ny - T / 2 - 22, 6, 16);
-      }
-    }
-
-    // Pavements, parks, ground shadows
-    for (const b of blocks) {
-      if (!inView(b.x, b.y, b.S, b.S)) continue;
-      ctx.fillStyle = '#b9ae98'; rr(ctx, b.x - 2, b.y - 2, b.S + 4, b.S + 4, 12); ctx.fill();
-      ctx.fillStyle = PAT_PAVE; rr(ctx, b.x, b.y, b.S, b.S, 10); ctx.fill();
-      if (b.park) {
-        ctx.fillStyle = PAT_GRASS; rr(ctx, b.x + 22, b.y + 22, b.S - 44, b.S - 44, 16); ctx.fill();
-        ctx.strokeStyle = '#e9dcbf'; ctx.lineWidth = 10; ctx.beginPath(); ctx.ellipse(b.x + b.S / 2, b.y + b.S / 2, b.S * .3, b.S * .22, .3, 0, 7); ctx.stroke();
-      }
-      ctx.fillStyle = 'rgba(25,30,45,.10)';
-      for (const bd of b.buildings) for (const f of [.35, .7, 1]) ctx.fillRect(bd.x + bd.H * .32 * f, bd.y + bd.H * .32 * f, bd.w, bd.h);
-      ctx.fillStyle = 'rgba(25,30,45,.18)';
-      for (const tr of b.trees) { ctx.beginPath(); ctx.arc(tr.x + tr.r * .5, tr.y + tr.r * .6, tr.r, 0, 7); ctx.fill(); }
-    }
+    // Grass beyond the city edge, then the pre-drawn ground (only the visible part)
+    ctx.fillStyle = '#5a804c'; ctx.fillRect(x0 - 50, y0 - 50, vw + 100, vh + 100);
+    const gx0 = Math.max(0, Math.floor(x0)), gy0 = Math.max(0, Math.floor(y0));
+    const gx1 = Math.min(WORLD, Math.ceil(x0 + vw)), gy1 = Math.min(WORLD, Math.ceil(y0 + vh));
+    if (gx1 > gx0 && gy1 > gy0) ctx.drawImage(GROUND, gx0, gy0, gx1 - gx0, gy1 - gy0, gx0, gy0, gx1 - gx0, gy1 - gy0);
 
     // Skid marks
-    ctx.lineWidth = 3; ctx.lineCap = 'round';
-    for (const s of skids) { ctx.strokeStyle = `rgba(20,22,26,${Math.min(.16, s.life * .05)})`; ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); ctx.stroke(); }
-    ctx.lineCap = 'butt';
+    if (skids.length) {
+      ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(20,22,26,.14)'; ctx.beginPath();
+      for (const s of skids) { ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); }
+      ctx.stroke(); ctx.lineCap = 'butt';
+    }
 
     // Pickups
     for (const k of rices) if (inView(k.x, k.y, 0, 0)) drawItem({ icon: 'rice', x: k.x, y: k.y });
@@ -978,9 +1015,6 @@
     ctx.restore();
 
     // ---- Screen space ----
-    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .35, W / 2, H / 2, Math.max(W, H) * .75);
-    vg.addColorStop(0, 'rgba(10,14,22,0)'); vg.addColorStop(1, 'rgba(10,14,22,.45)');
-    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
     if (state === 'title') return;
 
     // Cinematic bars during a bust
@@ -1002,10 +1036,14 @@
       }
       // Minimap
       const ms = Math.min(132, W * 0.26), mx = W - ms - 14, my = W < 560 ? 112 : 104, sc = ms / WORLD;
-      ctx.fillStyle = 'rgba(27,35,51,.82)'; rr(ctx, mx - 6, my - 6, ms + 12, ms + 12, 10); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.lineWidth = 2; ctx.beginPath();
-      for (let i = 0; i < NODES; i++) { const c = nodeX(i) * sc; ctx.moveTo(mx, my + c); ctx.lineTo(mx + ms, my + c); ctx.moveTo(mx + c, my); ctx.lineTo(mx + c, my + ms); }
-      ctx.stroke();
+      if (!miniCache) {
+        const S = DPR; miniCache = makeCanvas((ms + 12) * S, (ms + 12) * S); const g = miniCache.getContext('2d'); g.scale(S, S);
+        g.fillStyle = 'rgba(27,35,51,.82)'; rr(g, 0, 0, ms + 12, ms + 12, 10); g.fill();
+        g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 2; g.beginPath();
+        for (let i = 0; i < NODES; i++) { const c = 6 + nodeX(i) * sc; g.moveTo(6, c); g.lineTo(6 + ms, c); g.moveTo(c, 6); g.lineTo(c, 6 + ms); }
+        g.stroke();
+      }
+      ctx.drawImage(miniCache, mx - 6, my - 6, ms + 12, ms + 12);
       ctx.fillStyle = '#ffffff'; for (const k of stacks) ctx.fillRect(mx + k.x * sc - 2, my + k.y * sc - 1.5, 4, 3);
       ctx.fillStyle = '#f4d27a'; for (const k of rices) { ctx.beginPath(); ctx.arc(mx + k.x * sc, my + k.y * sc, 2.2, 0, 7); ctx.fill(); }
       ctx.fillStyle = '#ff5a4f'; for (const s of suspects) { ctx.beginPath(); ctx.arc(mx + s.x * sc, my + s.y * sc, 4 + Math.sin(t * 8), 0, 7); ctx.fill(); }
@@ -1109,7 +1147,7 @@
     else if (state === 'play') { if (bust) skipBust(); else throwNotice(); }
   }
   addEventListener('keydown', e => {
-    if (KEYMAP[e.code]) { keys[KEYMAP[e.code]] = true; e.preventDefault(); }
+    if (KEYMAP[e.code]) { if (!keys[KEYMAP[e.code]]) rememberTurn(KEYMAP[e.code]); keys[KEYMAP[e.code]] = true; e.preventDefault(); }
     if (state === 'title') {
       if (KEYMAP[e.code] === 'left' || e.code === 'Digit1') selectMode('ryan');
       if (KEYMAP[e.code] === 'right' || e.code === 'Digit2') selectMode('kaspar');
@@ -1125,14 +1163,101 @@
   if (window.matchMedia('(pointer: coarse)').matches) $('touch').classList.remove('hidden');
   document.querySelectorAll('#touch [data-k]').forEach(b => {
     const k = b.dataset.k;
-    const on = e => { e.preventDefault(); keys[k] = true; b.classList.add('on'); };
+    const on = e => { e.preventDefault(); if (!keys[k]) rememberTurn(k); keys[k] = true; b.classList.add('on'); };
     const off = e => { e.preventDefault(); keys[k] = false; b.classList.remove('on'); };
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off);
     b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
   });
   $('tThrow').addEventListener('pointerdown', e => { e.preventDefault(); action(); });
 
+  // ================= Pre-rendering (done once, so frames stay cheap) =================
+  let GROUND = null, TREE_IMG = null;
+  function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h)); return c; }
+
+  // Roads, markings, pavements, parks and ground shadows never change: draw them once.
+  function buildGround() {
+    const c = makeCanvas(WORLD, WORLD), g = c.getContext('2d');
+    const road = makePattern('#3e444d', 1400, .10, g), pave = makePattern('#ddd4c2', 700, .07, g), grass = makePattern('#7fb068', 900, .12, g);
+    g.fillStyle = road; g.fillRect(0, 0, WORLD, WORLD);
+    g.fillStyle = 'rgba(255,255,255,.55)';
+    for (let i = 0; i < NODES; i++) for (let k = 0; k < NODES - 1; k++) {
+      const cc = nodeX(i), a = nodeX(k) + T / 2, b = nodeX(k + 1) - T / 2;
+      g.fillRect(a, cc - T / 2 + 7, b - a, 2); g.fillRect(a, cc + T / 2 - 9, b - a, 2);
+      g.fillRect(cc - T / 2 + 7, a, 2, b - a); g.fillRect(cc + T / 2 - 9, a, 2, b - a);
+    }
+    g.fillStyle = 'rgba(246,212,90,.75)';
+    for (let i = 0; i < NODES; i++) for (let k = 0; k < NODES - 1; k++) {
+      const cc = nodeX(i), a = nodeX(k) + T / 2 + 30, b = nodeX(k + 1) - T / 2 - 30;
+      for (let d = a; d < b; d += 44) { g.fillRect(d, cc - 1.5, Math.min(24, b - d), 3); g.fillRect(cc - 1.5, d, 3, Math.min(24, b - d)); }
+    }
+    g.fillStyle = 'rgba(255,255,255,.6)';
+    for (let i = 0; i < NODES; i++) for (let j = 0; j < NODES; j++) {
+      const nx = nodeX(i), ny = nodeX(j);
+      for (let q = -T / 2 + 12; q < T / 2 - 12; q += 11) {
+        if (i < NODES - 1) g.fillRect(nx + T / 2 + 6, ny + q, 16, 6);
+        if (i > 0) g.fillRect(nx - T / 2 - 22, ny + q, 16, 6);
+        if (j < NODES - 1) g.fillRect(nx + q, ny + T / 2 + 6, 6, 16);
+        if (j > 0) g.fillRect(nx + q, ny - T / 2 - 22, 6, 16);
+      }
+    }
+    for (const b of blocks) {
+      g.fillStyle = '#b9ae98'; rr(g, b.x - 2, b.y - 2, b.S + 4, b.S + 4, 12); g.fill();
+      g.fillStyle = pave; rr(g, b.x, b.y, b.S, b.S, 10); g.fill();
+      if (b.park) {
+        g.fillStyle = grass; rr(g, b.x + 22, b.y + 22, b.S - 44, b.S - 44, 16); g.fill();
+        g.strokeStyle = '#e9dcbf'; g.lineWidth = 10; g.beginPath(); g.ellipse(b.x + b.S / 2, b.y + b.S / 2, b.S * .3, b.S * .22, .3, 0, 7); g.stroke();
+      }
+      g.fillStyle = 'rgba(25,30,45,.10)';
+      for (const bd of b.buildings) for (const f of [.35, .7, 1]) g.fillRect(bd.x + bd.H * .32 * f, bd.y + bd.H * .32 * f, bd.w, bd.h);
+      g.fillStyle = 'rgba(25,30,45,.18)';
+      for (const tr of b.trees) { g.beginPath(); g.arc(tr.x + tr.r * .5, tr.y + tr.r * .6, tr.r, 0, 7); g.fill(); }
+    }
+    return c;
+  }
+
+  // Each building's roof (parapet, water tanks, block number) becomes a small image.
+  function buildBuildingSprites() {
+    const RS = 1.5;
+    for (const b of blocks) for (const bd of b.buildings) {
+      bd.faceN = shade(bd.roof, .72); bd.faceS = shade(bd.roof, .9); bd.faceW = shade(bd.roof, .8); bd.faceE = shade(bd.roof, .95);
+      bd.floors = Math.max(3, Math.round(bd.H / 13));
+      const c = makeCanvas(bd.w * RS, bd.h * RS), g = c.getContext('2d'), w = bd.w, h = bd.h;
+      g.scale(RS, RS);
+      g.fillStyle = bd.roof; g.fillRect(0, 0, w, h);
+      g.strokeStyle = 'rgba(0,0,0,.09)'; g.lineWidth = 3; g.strokeRect(5, 5, w - 10, h - 10);
+      const R = mulberry32(bd.seed);
+      for (let i = 0; i < 2; i++) {
+        const tx = 16 + R() * (w - 50), ty = 16 + R() * (h - 44);
+        g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(tx + 3, ty + 3, 22, 16);
+        g.fillStyle = '#c9ced6'; g.fillRect(tx, ty, 22, 16);
+        g.fillStyle = '#aeb4be'; g.fillRect(tx + 2, ty + 2, 18, 4);
+      }
+      g.fillStyle = 'rgba(27,35,51,.28)'; g.font = `800 ${Math.min(22, w / 5)}px ${UI}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(bd.num, w / 2, h / 2 + 8);
+      bd.img = c;
+    }
+  }
+
+  // One tree canopy image, scaled for every tree.
+  function buildTree() {
+    const r = 32, S = 2, c = makeCanvas(r * 2 * S, r * 2 * S), g = c.getContext('2d');
+    g.scale(S, S);
+    g.fillStyle = '#3f7f43'; g.beginPath(); g.arc(r, r, r, 0, 7); g.fill();
+    g.fillStyle = '#58a15a'; g.beginPath(); g.arc(r - r * .25, r - r * .25, r * .62, 0, 7); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.12)'; g.beginPath(); g.arc(r - r * .4, r - r * .4, r * .25, 0, 7); g.fill();
+    return c;
+  }
+
+  function prerender() {
+    GROUND = buildGround();
+    buildBuildingSprites();
+    TREE_IMG = buildTree();
+    // Re-draw roof numbers once web fonts have loaded, so they use the right font
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => buildBuildingSprites());
+  }
+
   // ================= Loop =================
+  prerender();
   reset();
   let last = performance.now();
   function frame(now) {
