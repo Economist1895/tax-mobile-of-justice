@@ -32,7 +32,13 @@
   .sub { font-size: 11.5px; color: var(--muted); font-weight: 600; }
   .panel.right { text-align: right; min-width: 150px; }
   .ammo { margin-top: 6px; font-size: 11.5px; font-weight: 700; color: var(--red); display: flex; align-items: center; gap: 6px; }
-  #ammo { letter-spacing: 2px; font-size: 14px; }
+  /* Notices left, as little envelopes drawn in CSS (an envelope character would make the browser search
+     every system font for it the first time it appears, freezing the game for a moment) */
+  #ammo { display: inline-flex; gap: 4px; }
+  #ammo i { position: relative; width: 15px; height: 11px; box-sizing: border-box; border: 1.5px solid var(--red); border-radius: 2px; overflow: hidden; opacity: .3; }
+  #ammo i.on { background: #fff; opacity: 1; }
+  #ammo i::after { content: ""; position: absolute; left: 50%; top: -4px; width: 7px; height: 7px; box-sizing: border-box;
+    border: solid var(--red); border-width: 0 1.5px 1.5px 0; transform: translateX(-50%) rotate(45deg); }
   #time { font-family: Fraunces, Georgia, serif; font-weight: 800; font-size: 28px; line-height: 1.1; font-variant-numeric: tabular-nums; margin-top: 4px; }
   #time.urgent { color: var(--red); animation: pulse .5s ease-in-out infinite alternate; }
   @keyframes pulse { to { transform: scale(1.08); } }
@@ -151,46 +157,41 @@
     <div class="mono">Investigation Division · Fleet Unit · Vehicle GST 009</div>
     <h1>Tax Mobile of Justice</h1>
     <canvas id="hero" width="900" height="150"></canvas>
-    <p>Tax evaders are fleeing across the city. Jump into the Tax Mobile of Justice (GST 009) and send as many as you can to <b>Revenue House</b> before the <b>60-second Time Bar</b> runs out.</p>
+    <p>Catch as many tax evaders as you can and send them to <b>Revenue House</b> before the <b>60-second Time Bar</b> runs out.</p>
 
-        <div class="controls2" style="margin-top:10px">
-      <div class="kbd-only"><span class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> or arrows: press the way you want to go</div>
-      <div class="touch-only">🕹️ Slide your thumb on the round pad (bottom left) towards the way you want to go</div>
-      <div class="touch-only">✉️ Tap the yellow button to throw a Notice</div>
+    <div class="controls2" style="margin-top:10px">
+      <div class="kbd-only"><span class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> or arrows to steer</div>
       <div class="kbd-only"><kbd class="wide">Space</kbd> throw a Notice</div>
-      <div style="font-weight:500;color:#4a5164">Tip: press a turn just before a junction and the car will take it for you.</div>
+      <div class="touch-only">🕹️ Pad to steer</div>
+      <div class="touch-only">✉️ Button to throw a Notice</div>
     </div>
     <div class="section">1 · Choose your officer</div>
     <div class="modes">
       <button class="mode sel" data-mode="ryan">
         <div class="who">Ryan Li <span class="badge normal">NORMAL</span></div>
-        <div class="rank">Manager · recommended for first-timers</div>
+        <div class="rank">Manager · best for first-timers</div>
         <ul>
           <li>Slower suspects, more time per case</li>
-          <li>Start with 3 Notices, carry up to 5</li>
-          <li>Each Notice hit fills half the ring</li>
-          <li>Standard PG targets</li>
+          <li>More Notices</li>
         </ul>
       </button>
       <button class="mode" data-mode="kaspar">
         <div class="who">Kaspar Chen <span class="badge hard">HARD</span></div>
         <div class="rank">Senior Manager · bigger cases, bigger KPIs</div>
         <ul>
-          <li>Faster suspects who swerve at junctions, less time per case</li>
-          <li>Start with 2 Notices, carry up to 3; evidence only drops when you're on their tail</li>
-          <li>Each Notice hit fills 70%, so aim carefully</li>
-          <li>Cases worth 50% more, but Senior Manager KPIs: higher PG targets</li>
+          <li>Faster, trickier suspects, less time</li>
+          <li>Fewer Notices, cases worth 50% more</li>
         </ul>
       </button>
     </div>
 
     <div class="section">2 · How to play</div>
     <ol class="steps">
-      <li><span class="ic">🎯</span><span><b>Find suspects.</b> Red arrows at the edge of the screen point to them, and they show as red dots on the minimap (top right). Roads marked orange are closed for tunnelling works near Revenue House.</span></li>
-      <li><span class="ic">🟡</span><span><b>Fill the gold ring to catch them.</b> Stay close to a suspect to fill it slowly, ram them to stun them, or throw a Notice (<span class="kbd-only"><kbd>Space</kbd></span><span class="touch-only">✉️ button</span>) when gold brackets lock on to a suspect to fill it fast. Notices must be served in person: drive in close to finish the catch.</span></li>
-      <li><span class="ic">✉️</span><span><b>Notices are limited.</b> Drive over the evidence suspects drop, or the ✉️ Notice stacks on the road, to get more.</span></li>
-      <li><span class="ic">⏳</span><span><b>Every case has its own timer</b>, shown under the suspect's name. If it hits zero, the case is time-barred and they get away.</span></li>
-      <li><span class="ic">🍗</span><span><b>Extras:</b> chicken rice gives a speed boost, catching suspects back to back earns a streak bonus, and in the last 10 seconds (the year-end rush) every case is worth double.</span></li>
+      <li><span class="ic">🎯</span><span><b>Find suspects:</b> follow the red arrows.</span></li>
+      <li><span class="ic">🟡</span><span><b>Catch them:</b> stay close to fill the gold ring. Ram them or throw a Notice to fill it faster.</span></li>
+      <li><span class="ic">✉️</span><span><b>Reload:</b> drive over dropped evidence and ✉️ stacks for more Notices.</span></li>
+      <li><span class="ic">⏳</span><span><b>Be quick:</b> if a suspect's timer runs out, they get away.</span></li>
+      <li><span class="ic">🍚</span><span><b>Bonuses:</b> chicken rice for a speed boost. Quick catches in a row and the last 10 seconds pay extra.</span></li>
     </ol>
 
     <div class="startbar"><button class="btn" id="startBtn">Start Shift as <span id="startName" style="opacity:1;font-size:inherit;font-weight:800;margin:0">Ryan Li</span> <span class="kbd-only">Space</span></button></div>
@@ -327,6 +328,14 @@
     for (let i = 1; i < n; i++) if (solidAt(x1 + (x2 - x1) * i / n, y1 + (y2 - y1) * i / n)) return false;
     return true;
   }
+  // Critically damped spring (like Unity's SmoothDamp): glides o[k] to the target without overshooting, and
+  // its speed (kept in o[k + 'V']) builds up and dies away gradually, so whatever it moves never lurches
+  function smoothDamp(o, k, target, time, dt) {
+    const w = 2 / time, x = w * dt, e = 1 / (1 + x + .48 * x * x + .235 * x * x * x), vk = k + 'V';
+    const change = o[k] - target, temp = ((o[vk] || 0) + w * change) * dt;
+    o[vk] = ((o[vk] || 0) - w * temp) * e;
+    o[k] = target + (change + temp) * e;
+  }
   function lerpAngle(a, b, k) { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * k; }
   function shade(hex, f) {
     const n = parseInt(hex.slice(1), 16);
@@ -398,6 +407,29 @@
   const ROOFS = ['#f3e2c0', '#dfe9ef', '#f4d3c0', '#d9e8d2', '#e9e2f3', '#f6e7a8', '#efd5dc', '#e7ecd9'];
   const blocks = [];
   const RH = { bi: 2, bj: 2 };   // Revenue House's block, beside the junction where every shift starts
+  // Revenue House, after the real one: a stone podium with a curved, finned corner, and a tower whose curved
+  // glass front bulges out of a tall grey frame, the glass stepping up in narrower tiers at the top. The tower
+  // is set diagonally, its glass facing the corner junction where every shift starts. Shapes are ground plans
+  // (convex, clockwise); see drawRevenueHouse.
+  function buildRevenueHouse(x0, y0, S, pad) {
+    const xa = x0 + pad, ya = y0 + pad, x1 = x0 + S - pad, y1 = y0 + S - pad, R = 80;
+    const podium = [[xa, ya], [x1, ya], [x1, y1 - R]];
+    for (let i = 1; i < 8; i++) { const a = i / 8 * Math.PI / 2; podium.push([x1 - R + Math.cos(a) * R, y1 - R + Math.sin(a) * R]); }
+    podium.push([x1 - R, y1], [xa, y1]);
+    // Tower plans in (u, v): u points out of the glass front towards the junction, v along the frame
+    const c = [x0 + S * .46, y0 + S * .46], k = Math.SQRT1_2;
+    const plan = pts => pts.map(([u, v]) => [c[0] + (u - v) * k, c[1] + (u + v) * k]);
+    const bow = (w, d) => { const p = []; for (let i = 0; i <= 10; i++) { const v = -w + 2 * w * i / 10; p.push([-5 + d * Math.sqrt(1 - (v / w) ** 2), v]); } return plan(p); };
+    const slab = plan([[-45, -88], [-5, -88], [-5, 88], [-45, 88]]), glass = bow(66, 50);
+    return {
+      podium, pc: [x0 + S / 2, y0 + S / 2], c, slab, SLAB_H: 218, GLASS_H: 198,
+      tiers: [[glass, 34, 172], [bow(50, 44), 172, 186], [bow(32, 38), 186, 198]],
+      gardens: [[xa + 30, ya + 28, 20], [xa + 58, ya + 22, 13], [x1 - 34, ya + 30, 18]],
+      label: [xa + 92, y1 - 19],
+      shadows: [[podium, 34], [slab, 218], [glass, 172]],
+    };
+  }
+
   (function buildCity() {
     const R = mulberry32(20261113), S = (BLOCK - 1) * T, pad = 26;
     for (let bi = 0; bi < NODES - 1; bi++) for (let bj = 0; bj < NODES - 1; bj++) {
@@ -423,10 +455,10 @@
       }
       blocks.push(b);
     }
-    // Revenue House gets the whole block
-    const rb = blocks[RH.bi * (NODES - 1) + RH.bj], inner = S - 2 * pad, roof = '#f1e6cf';
-    rb.park = false; rb.trees = [];
-    rb.buildings = [{ x: rb.x + pad, y: rb.y + pad, w: inner, h: inner, H: 140, roof, wall: shade(roof, .8), num: 0, seed: 1, label: 'REVENUE HOUSE' }];
+    // Revenue House gets the whole block (see buildRevenueHouse)
+    const rb = blocks[RH.bi * (NODES - 1) + RH.bj];
+    rb.park = false; rb.trees = []; rb.buildings = [];
+    rb.rh = buildRevenueHouse(rb.x, rb.y, S, pad);
     for (const f of [0.12, 0.88]) for (const [u, v] of [[f, 0], [f, 1], [0, f], [1, f]]) rb.trees.push({ x: rb.x + 13 + u * (S - 26), y: rb.y + 13 + v * (S - 26), r: 11, H: 18 });
   })();
   // ================= State =================
@@ -905,7 +937,8 @@
     if (Math.abs(score - shownScore) < 1) shownScore = score;
     setHUD('rev', 'text', money(shownScore));
     setHUD('cases', 'text', cases + (cases === 1 ? ' case' : ' cases'));
-    setHUD('ammo', 'text', '\u2709'.repeat(ammo) + '\u25cb'.repeat(mode.maxNotices - ammo));
+    const pips = ammo + '/' + mode.maxNotices;
+    if (hudCache.ammo !== pips) { hudCache.ammo = pips; $('ammo').innerHTML = '<i class="on"></i>'.repeat(ammo) + '<i></i>'.repeat(mode.maxNotices - ammo); }
     const sec = Math.ceil(timeLeft);
     setHUD('time', 'text', Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'));
     setHUD('time', 'urgent', timeLeft <= 10 && state === 'play');
@@ -955,13 +988,31 @@
       c.fillStyle = '#333'; c.beginPath(); c.ellipse(-L * .05, 0, 6 * sc, 9 * sc, 0, 0, 7); c.fill();
       c.fillStyle = color; c.beginPath(); c.arc(-L * .02, 0, 5.5 * sc, 0, 7); c.fill();
       c.fillStyle = '#9be7ff'; c.fillRect(L * .04, -3 * sc, 2.5 * sc, 6 * sc);
+    } else if (kind === 'sedan') {
+      // The Tax Mobile: side mirrors, then the body, with everything else clipped to its outline
+      c.fillStyle = shade(color, .62);
+      for (const s of [-1, 1]) { rr(c, L * .1, s * Wd / 2 - 1.4 * sc, L * .07, 2.8 * sc, 1.2 * sc); c.fill(); }
+      c.fillStyle = grad; rr(c, -L / 2, -Wd / 2, L, Wd, Wd * .42); c.fill();
+      c.save(); c.clip();
+      if (player) {   // twin livery stripes down the bonnet and boot
+        c.fillStyle = BLUE;
+        for (const s of [-1, 1]) c.fillRect(-L / 2, s * Wd * .1 - Wd * .045, L, Wd * .09);
+      }
+      // Headlights and tail lights
+      c.fillStyle = '#fff6d6'; for (const s of [-1, 1]) { rr(c, L * .43, s * Wd * .3 - Wd * .09, L * .07, Wd * .18, 1.2 * sc); c.fill(); }
+      c.fillStyle = '#e8473c'; for (const s of [-1, 1]) { rr(c, -L / 2, s * Wd * .31 - Wd * .1, L * .045, Wd * .2, .8 * sc); c.fill(); }
+      c.restore();
+      c.strokeStyle = 'rgba(0,0,0,.28)'; c.lineWidth = Math.max(1, .5 * sc); rr(c, -L / 2, -Wd / 2, L, Wd, Wd * .42); c.stroke();
+      // Glass cabin (windscreen, rear and side windows), with the roof on top
+      c.fillStyle = glass; rr(c, -L * .3, -Wd * .41, L * .56, Wd * .82, Wd * .2); c.fill();
+      c.fillStyle = 'rgba(255,255,255,.16)';
+      c.beginPath(); c.moveTo(L * .13, -Wd * .34); c.lineTo(L * .19, -Wd * .34); c.lineTo(L * .14, Wd * .12); c.lineTo(L * .08, Wd * .12); c.closePath(); c.fill();
+      c.fillStyle = grad; rr(c, -L * .21, -Wd * .34, L * .3, Wd * .68, Wd * .14); c.fill();
+      c.fillStyle = 'rgba(255,255,255,.14)'; rr(c, -L * .21, -Wd * .34, L * .3, Wd * .2, Wd * .1); c.fill();
     } else {
       c.fillStyle = grad; rr(c, -L / 2, -Wd / 2, L, Wd, Wd * .38); c.fill();
       c.strokeStyle = 'rgba(0,0,0,.25)'; c.lineWidth = 1; c.stroke();
-      if (kind === 'sedan') {
-        c.fillStyle = glass; rr(c, -L * .24, -Wd / 2 + 3, L * .5, Wd - 6, 5); c.fill();
-        c.fillStyle = shade(color, 1.04); rr(c, -L * .16, -Wd / 2 + 4.5, L * .3, Wd - 9, 3); c.fill();
-      } else if (kind === 'sports') {
+      if (kind === 'sports') {
         c.fillStyle = glass; rr(c, -L * .14, -Wd / 2 + 4, L * .34, Wd - 8, 6); c.fill();
         c.fillStyle = 'rgba(0,0,0,.25)'; for (const o of [-4, 0, 4]) c.fillRect(L * .26, o - .7, L * .12, 1.4);
       } else if (kind === 'van') {
@@ -978,19 +1029,9 @@
         c.strokeStyle = '#fff'; c.lineWidth = 1.6 * sc; c.beginPath(); c.arc(L * .02, Wd * .2, 3.5 * sc, 0, 7); c.stroke();
       }
     }
-    if (kind !== 'scooter') {
+    if (kind !== 'scooter' && kind !== 'sedan') {
       c.fillStyle = '#fff4c8'; c.fillRect(L / 2 - 3, -Wd / 2 + 2.5, 3, 4); c.fillRect(L / 2 - 3, Wd / 2 - 6.5, 3, 4);
       c.fillStyle = '#ff5a4f'; c.fillRect(-L / 2, -Wd / 2 + 2.5, 2.5, 4); c.fillRect(-L / 2, Wd / 2 - 6.5, 2.5, 4);
-    }
-    if (player) {
-      // Singapore-style black number plates, front and back
-      for (const end of [-1, 1]) {
-        const px = end * (L / 2 - 1.2 * sc);
-        c.fillStyle = '#111'; c.fillRect(px - 1.6 * sc, -Wd * .3, 3.2 * sc, Wd * .6);
-        c.save(); c.translate(px, 0); c.rotate(end < 0 ? Math.PI / 2 : -Math.PI / 2);
-        c.fillStyle = '#fff'; c.font = `800 ${2.6 * sc}px ${UI}`; c.textAlign = 'center'; c.textBaseline = 'middle';
-        c.fillText('GST 009', 0, .2 * sc); c.restore();
-      }
     }
     c.restore();
   }
@@ -1073,6 +1114,53 @@
     ctx.drawImage(b.img, x + ox, y + oy, w, h);
   }
 
+  // A prism standing on the ground plan `pts` (a convex polygon, clockwise), from height h0 up to h1, leaning away
+  // from the camera like the other buildings. Only the walls facing the camera are drawn, then the roof (if any).
+  // o.storeys: light lines across the walls; o.fins: vertical lines this far apart, up to o.finTo of the height.
+  function prism(pts, cx0, cy0, h0, h1, ccx, ccy, wall, roofFill, o = {}) {
+    const k0 = h0 / 950, k1 = h1 / 950, dx = cx0 - ccx, dy = cy0 - ccy;
+    const ax = dx * k0, ay = dy * k0, bx = dx * k1, by = dy * k1, n = pts.length;
+    for (let i = 0; i < n; i++) {
+      const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % n], nx = y2 - y1, ny = x1 - x2;   // outward normal
+      if (nx * (bx - ax) + ny * (by - ay) >= 0) continue;   // facing away from the camera
+      ctx.fillStyle = shade(wall, .84 + .2 * (ny / Math.hypot(nx, ny)));   // lit from the bottom of the screen
+      ctx.beginPath(); ctx.moveTo(x1 + ax, y1 + ay); ctx.lineTo(x2 + ax, y2 + ay); ctx.lineTo(x2 + bx, y2 + by); ctx.lineTo(x1 + bx, y1 + by); ctx.closePath(); ctx.fill();
+      if (o.storeys) {
+        ctx.strokeStyle = o.storeyColor || 'rgba(255,255,255,.22)'; ctx.lineWidth = 1; ctx.beginPath();
+        for (let f = 1; f < o.storeys; f++) { const u = f / o.storeys, px = ax + (bx - ax) * u, py = ay + (by - ay) * u; ctx.moveTo(x1 + px, y1 + py); ctx.lineTo(x2 + px, y2 + py); }
+        ctx.stroke();
+      }
+      if (o.fins) {
+        const m = Math.max(1, Math.round(Math.hypot(x2 - x1, y2 - y1) / o.fins)), top = o.finTo || 1;
+        ctx.strokeStyle = o.finColor; ctx.lineWidth = o.finW || 1; ctx.beginPath();
+        for (let j = 1; j < m; j++) { const s = j / m, px = x1 + (x2 - x1) * s, py = y1 + (y2 - y1) * s; ctx.moveTo(px + ax, py + ay); ctx.lineTo(px + ax + (bx - ax) * top, py + ay + (by - ay) * top); }
+        ctx.stroke();
+      }
+    }
+    if (roofFill) {
+      ctx.fillStyle = roofFill; ctx.beginPath();
+      pts.forEach(([x, y], i) => i ? ctx.lineTo(x + bx, y + by) : ctx.moveTo(x + bx, y + by)); ctx.closePath(); ctx.fill();
+    }
+    return { bx, by };
+  }
+  // Revenue House (see buildRevenueHouse). Painter's order: the grey frame and the glass hide each other
+  // depending on which side the camera is on; the top of the frame rises above the glass, so it goes last.
+  function drawRevenueHouse(rh, ccx, ccy) {
+    const [pcx, pcy] = rh.pc, [tcx, tcy] = rh.c;
+    const pod = prism(rh.podium, pcx, pcy, 0, 34, ccx, ccy, '#d9bc98', '#eadbc4', { storeys: 3, storeyColor: 'rgba(70,60,50,.18)', fins: 6, finTo: .45, finColor: 'rgba(255,255,255,.85)', finW: 2 });
+    // Podium roof: bamboo gardens and the name
+    for (const [gx, gy, r] of rh.gardens) {
+      ctx.fillStyle = '#8fbf72'; ctx.beginPath(); ctx.arc(gx + pod.bx, gy + pod.by, r, 0, 7); ctx.fill();
+      ctx.fillStyle = '#6fa457'; ctx.beginPath(); ctx.arc(gx + pod.bx - r * .25, gy + pod.by - r * .25, r * .5, 0, 7); ctx.fill();
+    }
+    ctx.fillStyle = INK; ctx.font = `800 15px ${DISPLAY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('REVENUE HOUSE', rh.label[0] + pod.bx, rh.label[1] + pod.by);
+    const frame = () => prism(rh.slab, tcx, tcy, 34, rh.GLASS_H, ccx, ccy, '#a4adb7', null, { storeys: 8, storeyColor: 'rgba(255,255,255,.18)' });
+    const glass = () => { for (const [pts, h0, h1] of rh.tiers) prism(pts, tcx, tcy, h0, h1, ccx, ccy, '#4f8fa3', '#cdd9dc', { storeys: Math.round((h1 - h0) / 9), fins: 7, finColor: 'rgba(210,240,250,.22)' }); };
+    if ((ccx - tcx) + (ccy - tcy) > 0) { frame(); glass(); } else { glass(); frame(); }   // camera on the glass side?
+    prism(rh.slab, tcx, tcy, rh.GLASS_H, rh.SLAB_H, ccx, ccy, '#a4adb7', '#c6ccd2', { storeys: 2, storeyColor: 'rgba(255,255,255,.18)' });
+  }
+
   function drawTreeCanopy(tr, ccx, ccy) {
     const k = tr.H / 950, x = tr.x + (tr.x - ccx) * k, y = tr.y + (tr.y - ccy) * k;
     ctx.drawImage(TREE_IMG, x - tr.r, y - tr.r, tr.r * 2, tr.r * 2);
@@ -1137,7 +1225,6 @@
   // ================= Drawing: frame =================
   function draw(dt) {
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.fillStyle = '#2a3138'; ctx.fillRect(0, 0, W, H);
     const z = cam.z, vw = W / z, vh = H / z;
     const cx = cam.x, cy = cam.y, x0 = cx - vw / 2, y0 = cy - vh / 2;
     const inView = (x, y, w, h, m = 160) => x < x0 + vw + m && x + w > x0 - m && y < y0 + vh + m && y + h > y0 - m;
@@ -1202,6 +1289,9 @@
       for (const bd of b.buildings) drawBuilding(bd, cx, cy);
       for (const tr of b.trees) drawTreeCanopy(tr, cx, cy);
     }
+    // Revenue House's tower last: it's the tallest thing in town, so it leans over its neighbours
+    const rhb = blocks[RH.bi * (NODES - 1) + RH.bj];
+    if (inView(rhb.x, rhb.y, rhb.S, rhb.S, 420)) drawRevenueHouse(rhb.rh, cx, cy);
 
     // Particles
     for (const p of particles) {
@@ -1397,11 +1487,15 @@
 
   // Title screen car illustration
   const hero = $('hero'), hctx = hero.getContext('2d');
+  // Drawn at the canvas's real on-screen size, so the car keeps its shape at any card width
   function drawHero() {
-    hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.clearRect(0, 0, 900, 150);
-    hctx.fillStyle = '#e9e0cc'; rr(hctx, 0, 0, 900, 150, 18); hctx.fill();
-    hctx.fillStyle = 'rgba(255,255,255,.7)'; for (let x = ((-t * 260) % 90) - 90; x < 900; x += 90) hctx.fillRect(x, 73, 46, 5);
-    drawVehicle(hctx, 450, 75, 0, 'sedan', '#d5d9de', 3.6, true);
+    const w = hero.clientWidth, h = hero.clientHeight, d = Math.min(window.devicePixelRatio || 1, 2);
+    if (!w || !h) return;
+    if (hero.width !== Math.round(w * d) || hero.height !== Math.round(h * d)) { hero.width = Math.round(w * d); hero.height = Math.round(h * d); }
+    hctx.setTransform(d, 0, 0, d, 0, 0); hctx.clearRect(0, 0, w, h);
+    hctx.fillStyle = '#e9e0cc'; rr(hctx, 0, 0, w, h, 12); hctx.fill();
+    hctx.fillStyle = 'rgba(255,255,255,.7)'; for (let x = ((-t * 170) % 60) - 60; x < w; x += 60) hctx.fillRect(x, h / 2 - 1.5, 30, 3);
+    drawVehicle(hctx, w / 2, h / 2 - 2, 0, 'sedan', '#d5d9de', h * .62 / DIMS.sedan[1], true);
   }
 
   // ================= Flow =================
@@ -1409,6 +1503,7 @@
     reset(); state = 'play';
     tutorial = mode === MODES.ryan && !store.get('tmj-trained');
     cam.x = P.x; cam.y = P.y; cam.z = BASEZ; cam.lx = cam.ly = 0; cam.px = cam.py = undefined;
+    cam.xV = cam.yV = cam.lxV = cam.lyV = 0;
     $('title').classList.add('hidden'); $('over').classList.add('hidden'); $('hud').classList.remove('hidden'); showTouch(true);
     $('hudDriver').textContent = mode.name; $('hudDriver').parentElement.style.color = mode.color;
     toast(`${mode.name} (${mode.rank}) and GST 009 are on the road!`, mode.color);
@@ -1418,7 +1513,7 @@
     state = 'over'; overAt = performance.now();
     for (const k in keys) keys[k] = false;
     const tier = mode.pg.filter(v => score >= v).length;  // 0..4
-    const grade = 'PG ' + (tier + 1), remark = mode.remarks[tier];
+    const grade = 'PG' + (tier + 1), remark = mode.remarks[tier];
     $('apRef').textContent = 'Performance Appraisal · Confidential · Ref TMJ/2026/' + Math.floor(rand(10000, 99999));
     $('apOfficer').textContent = `${mode.name} (${mode.rank})`;
     $('apCases').textContent = cases;
@@ -1427,7 +1522,7 @@
     $('apNotices').textContent = `${stats.hits} hit / ${stats.thrown} thrown`;
     $('apBig').textContent = stats.biggest ? `${stats.biggest.name} (${money(stats.biggest.val)})` : '–';
     $('apRev').textContent = money(score);
-    $('apGrade').textContent = 'Performance Grade: ' + grade;
+    $('apGrade').textContent = 'Rating: ' + grade;
     $('apRemark').textContent = '“' + remark + '” — ' + mode.boss;
     $('over').classList.remove('hidden'); $('hud').classList.add('hidden'); showTouch(false); padEnd();
   }
@@ -1541,6 +1636,10 @@
       }
       g.fillStyle = 'rgba(25,30,45,.10)';
       for (const bd of b.buildings) for (const f of [.35, .7, 1]) g.fillRect(bd.x + bd.H * .32 * f, bd.y + bd.H * .32 * f, bd.w, bd.h);
+      if (b.rh) for (const [pts, H] of b.rh.shadows) for (const f of [.35, .7, 1]) {
+        const o = H * .32 * f;
+        g.beginPath(); pts.forEach(([px, py], i) => i ? g.lineTo(px + o, py + o) : g.moveTo(px + o, py + o)); g.closePath(); g.fill();
+      }
       g.fillStyle = 'rgba(25,30,45,.18)';
       for (const tr of b.trees) { g.beginPath(); g.arc(tr.x + tr.r * .5, tr.y + tr.r * .6, tr.r, 0, 7); g.fill(); }
     }
@@ -1558,15 +1657,14 @@
       g.fillStyle = bd.roof; g.fillRect(0, 0, w, h);
       g.strokeStyle = 'rgba(0,0,0,.09)'; g.lineWidth = 3; g.strokeRect(5, 5, w - 10, h - 10);
       const R = mulberry32(bd.seed);
-      for (let i = 0; i < (bd.label ? 0 : 2); i++) {
+      for (let i = 0; i < 2; i++) {
         const tx = 16 + R() * (w - 50), ty = 16 + R() * (h - 44);
         g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(tx + 3, ty + 3, 22, 16);
         g.fillStyle = '#c9ced6'; g.fillRect(tx, ty, 22, 16);
         g.fillStyle = '#aeb4be'; g.fillRect(tx + 2, ty + 2, 18, 4);
       }
       g.textAlign = 'center'; g.textBaseline = 'middle';
-      if (bd.label) { g.fillStyle = RED; g.font = `800 ${w / 10}px ${DISPLAY}`; g.fillText(bd.label, w / 2, h / 2); }
-      else { g.fillStyle = 'rgba(27,35,51,.28)'; g.font = `800 ${Math.min(22, w / 5)}px ${UI}`; g.fillText(bd.num, w / 2, h / 2 + 8); }
+      g.fillStyle = 'rgba(27,35,51,.28)'; g.font = `800 ${Math.min(22, w / 5)}px ${UI}`; g.fillText(bd.num, w / 2, h / 2 + 8);
       bd.img = c;
     }
   }
@@ -1593,6 +1691,8 @@
   // ================= Loop =================
   prerender();
   reset();
+  const CAM_FOLLOW = 0.12;   // seconds the camera takes to catch up with the car (on a phone; longer when zoomed in)
+  const CAM_LOOK = 0.2;      // how far ahead of the car the camera looks, in seconds of travel (on a phone)
   let last = performance.now();
   let dtSmooth = 1 / 60;
   function frame(now) {
@@ -1603,21 +1703,23 @@
     if (state === 'play' || state === 'ending') update(dt);
     else updateFX(dt);
 
-    // Camera
+    // Camera. Big screens are zoomed in further than phones, so the same move in the city is a bigger move
+    // on screen; zk scales the look-ahead and easing so the view moves about as gently as it does on a phone.
+    const zk = Math.max(1, cam.z / 0.55);
     let tx, ty, tz;
     if (state === 'title') { tx = WORLD / 2 + Math.cos(t * .07) * WORLD * .25; ty = WORLD / 2 + Math.sin(t * .05) * WORLD * .2; tz = BASEZ * .85; }
     else if (bust) { tx = (P.x + bust.s.x) / 2; ty = (P.y + bust.s.y) / 2; tz = BASEZ * 1.15; }
     else {
       // Look slightly ahead of where the car is actually moving, eased in slowly so turns don't swing the view
       const vx = (P.x - (cam.px ?? P.x)) / Math.max(dt, 1e-3), vy = (P.y - (cam.py ?? P.y)) / Math.max(dt, 1e-3);
-      const kl = 1 - Math.exp(-2 * dt);
-      cam.lx = (cam.lx || 0) + (clamp(vx, -420, 420) * .2 - (cam.lx || 0)) * kl;
-      cam.ly = (cam.ly || 0) + (clamp(vy, -420, 420) * .2 - (cam.ly || 0)) * kl;
+      smoothDamp(cam, 'lx', clamp(vx, -420, 420) * CAM_LOOK / zk, 0.6, dt);
+      smoothDamp(cam, 'ly', clamp(vy, -420, 420) * CAM_LOOK / zk, 0.6, dt);
       tx = P.x + cam.lx; ty = P.y + cam.ly; tz = BASEZ;   // steady zoom
     }
     cam.px = P.x; cam.py = P.y;
-    const ck = state === 'title' ? 1 : 1 - Math.exp(-7 * dt);
-    cam.x += (tx - cam.x) * ck; cam.y += (ty - cam.y) * ck; cam.z += (tz - cam.z) * (1 - Math.exp(-2.5 * dt));
+    if (state === 'title') { cam.x = tx; cam.y = ty; cam.xV = cam.yV = 0; }
+    else { smoothDamp(cam, 'x', tx, CAM_FOLLOW * zk, dt); smoothDamp(cam, 'y', ty, CAM_FOLLOW * zk, dt); }
+    cam.z += (tz - cam.z) * (1 - Math.exp(-2.5 * dt));
 
     draw(dt);
     if (state !== 'title') updateHUD(dt); else drawHero();
