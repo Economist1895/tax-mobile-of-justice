@@ -91,6 +91,14 @@
   .badge { display: inline-block; font: 800 10.5px Inter, sans-serif; letter-spacing: .06em; padding: 3px 8px; border-radius: 99px; vertical-align: 3px; margin-left: 6px; }
   .badge.normal { background: #dcebdc; color: #2e6b32; } .badge.hard { background: #f6d9d6; color: #a12a22; }
   .mode ul { margin: 0; padding-left: 16px; font-size: 12.5px; line-height: 1.5; color: #3b4356; }
+  .skipopt { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13.5px; color: #3b4356; cursor: pointer; }
+  .skipopt input { position: absolute; opacity: 0; pointer-events: none; }
+  .skipopt .sw { flex: none; position: relative; width: 36px; height: 20px; border-radius: 99px; background: #d8ccb2; transition: background .15s; }
+  .skipopt .sw::after { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+  .skipopt input:checked + .sw { background: var(--ink); }
+  .skipopt input:checked + .sw::after { transform: translateX(16px); }
+  .skipopt input:focus-visible + .sw { outline: 2px solid var(--blue); outline-offset: 2px; }
   .steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
   .steps li { display: grid; grid-template-columns: 30px 1fr; gap: 8px; align-items: start; font-size: 14px; line-height: 1.45; }
   .steps .ic { width: 30px; height: 30px; border-radius: 9px; background: #efe6d2; display: flex; align-items: center; justify-content: center; font-size: 15px; }
@@ -184,6 +192,7 @@
         </ul>
       </button>
     </div>
+    <label class="skipopt"><input type="checkbox" id="skipScenes"><span class="sw"></span><span><b>Skip catch scenes</b> · keep driving after each catch</span></label>
 
     <div class="section">2 · How to play</div>
     <ol class="steps">
@@ -465,6 +474,7 @@
   let state = 'title', ammo = 0, stacks = [], P, suspects, items, rices, notices, particles, skids, floaters, toasts, stamp, bust;
   let score, shownScore, cases, timeLeft, nextSpawn, lastType, noticeCD, endT, stats, streak, lastCatchAt, overAt = 0, t = 0;
   let yearEnd = false, tutorial = false;
+  let skipScenes = store.get('tmj-skip') === '1';   // "Skip catch scenes" on the title page
   const cam = { x: WORLD / 2, y: WORLD / 2, z: 1 };
   const keys = { up: false, down: false, left: false, right: false };
 
@@ -504,7 +514,8 @@
   }
 
   const progress = () => 1 - timeLeft / ROUND_TIME;  // 0 at start of shift, 1 at the end
-  const toast = (text, color = INK) => { toasts.push({ text, color, t: 2.6 }); if (toasts.length > 3) toasts.shift(); };
+  // Messages at the top of the screen; phones keep fewer at once so the road stays visible
+  const toast = (text, color = INK) => { toasts.push({ text, color, t: 2.6 }); while (toasts.length > (W < 560 ? 2 : 3)) toasts.shift(); };
   const floater = (x, y, text, color = INK) => floaters.push({ x, y, text, color, t: 1.5 });
   const MAX_PARTICLES = 220;
   function burst(x, y, n, opts) {
@@ -628,37 +639,51 @@
   }
 
   // ================= Busts (the funny bit) =================
+  // A suspect's ring is full. Usually that plays the catch scene; with "Skip catch scenes" on, the catch is
+  // scored on the spot and play carries on (the training catch always plays the scene, so it's seen once).
   function startBust(s) {
+    if (skipScenes && !s.tutor) { quickCatch(s); return; }
     bust = { s, t: 0, excuse: pick(s.ty.excuses), reply: pick(s.ty.replies), stamped: false };
     s.say = null; s.daze = 0; s.meter = 1; notices.length = 0;
+  }
+  function quickCatch(s) {
+    const { val, mult } = scoreCatch(s), m = mult * (yearEnd ? 2 : 1);
+    burst(s.x, s.y, 30, { kind: 'paper', colors: ['#ffffff', '#f7f1e3', '#dff0d8', '#fde9a8'], spd: 300, spdMin: 100, life: 1.2, size: 8 });
+    // Just the amount, kept short so it doesn't cover the road ahead
+    floater(s.x, s.y - 24, '+' + money(val) + (m > 1 ? ` ×${m}` : ''), m > 1 ? '#b8741a' : '#2e7d32');
+    removeCaught(s);
+  }
+  // Score a catch: streak, year-end rush, stats. Returns the amount and the streak multiplier.
+  function scoreCatch(s) {
+    const base = s.ty.value * mode.valueMul * (s.gen ? 0.45 : 1), elapsed = ROUND_TIME - timeLeft;
+    streak = elapsed - lastCatchAt <= STREAK_WINDOW ? streak + 1 : 1; lastCatchAt = elapsed;
+    stats.bestStreak = Math.max(stats.bestStreak, streak);
+    const mult = 1 + 0.25 * (Math.min(streak, 5) - 1), val = Math.round(base * mult * (yearEnd ? 2 : 1));
+    score += val; cases++;
+    if (!stats.biggest || val > stats.biggest.val) stats.biggest = { name: s.ty.name, val };
+    if (s.tutor) { tutorial = false; store.set('tmj-trained', '1'); }
+    return { val, mult };
   }
   function updateBust(dt) {
     bust.t += dt;
     updatePlayer(dt, false);
     if (!bust.stamped && bust.t >= 2.0) {
-      const s = bust.s, base = s.ty.value * mode.valueMul * (s.gen ? 0.45 : 1), elapsed = ROUND_TIME - timeLeft;
-      streak = elapsed - lastCatchAt <= STREAK_WINDOW ? streak + 1 : 1; lastCatchAt = elapsed;
-      stats.bestStreak = Math.max(stats.bestStreak, streak);
-      const mult = 1 + 0.25 * (Math.min(streak, 5) - 1), val = Math.round(base * mult * (yearEnd ? 2 : 1));
-      if (mult > 1) toast(`Efficiency bonus \u00d7${mult} (${streak} in a row)`, '#b8741a');
-      score += val; cases++; bust.stamped = true;
-      if (!stats.biggest || val > stats.biggest.val) stats.biggest = { name: s.ty.name, val };
+      const s = bust.s, { val, mult } = scoreCatch(s);
+      bust.stamped = true;
+      if (mult > 1) toast(`Efficiency bonus ×${mult} (${streak} in a row)`, '#b8741a');
       stamp = { t: 0, dur: 1.8, name: s.ty.name + (s.gen ? ' (Subsidiary)' : ''), val, ref: s.ref, offence: s.ty.offence, mult, rush: yearEnd };
-      if (s.tutor) { tutorial = false; store.set('tmj-trained', '1'); }
       burst(s.x, s.y, 46, { kind: 'paper', colors: ['#ffffff', '#f7f1e3', '#dff0d8', '#fde9a8'], spd: 380, spdMin: 120, life: 1.6, size: 9 });
     }
     if (bust.t >= 3.3) finishBust();
   }
   function skipBust() { if (bust.t < 2.0) bust.t = 2.0; else if (bust.t > 2.3) bust.t = 3.3; }
-  function finishBust() {
-    const s = bust.s; bust = null;
+  function finishBust() { const s = bust.s; bust = null; removeCaught(s); }
+  // Off to Revenue House. A shell company leaves two subsidiaries behind.
+  function removeCaught(s) {
     suspects.splice(suspects.indexOf(s), 1);
     if (s.key === 'shell' && !s.gen) {
-      for (const label of ['A', 'B']) {
-        const n = pickSpawnNode(), sub = spawnSuspect('shell', n.i, n.j, 1);
-        say(sub, `Subsidiary ${label}, newly registered!`, 2.5);
-      }
-      toast('It\u2019s shells all the way down! Two subsidiaries have appeared.', RED);
+      for (let i = 0; i < 2; i++) { const n = pickSpawnNode(); spawnSuspect('shell', n.i, n.j, 1); }
+      toast('Shells all the way down! 2 subsidiaries appeared', RED);
     }
     if (!suspects.length) nextSpawn = Math.min(nextSpawn, 0.6);
   }
@@ -1187,11 +1212,12 @@
   }
   const WRAP = new Map();
   function bubble(text, x, y, bg, fg, below = false, speaker = '') {
-    const k = LS, font = `600 ${14 * k}px ${UI}`, sfont = `800 ${11 * k}px ${UI}`, key = text + '|' + speaker + '|' + k;
+    // Speech is capped smaller than other labels on zoomed-out (phone) screens, so a line doesn't cover the road
+    const k = Math.min(LS, 1.25), font = `600 ${14 * k}px ${UI}`, sfont = `800 ${11 * k}px ${UI}`, key = text + '|' + speaker + '|' + k;
     let lay = WRAP.get(key);
     if (!lay) {
       const words = text.split(' '), lines = []; let line = '';
-      for (const wd of words) { const tst = line ? line + ' ' + wd : wd; if (textW(font, tst) > 210 * k && line) { lines.push(line); line = wd; } else line = tst; }
+      for (const wd of words) { const tst = line ? line + ' ' + wd : wd; if (textW(font, tst) > 190 * k && line) { lines.push(line); line = wd; } else line = tst; }
       lines.push(line);
       const w = Math.max(...lines.map(l => textW(font, l)), speaker ? textW(sfont, speaker.toUpperCase()) : 0) + 24 * k;
       lay = { lines, w };
@@ -1529,6 +1555,9 @@
 
   // ================= Input =================
   const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
+  const skipBox = $('skipScenes');
+  skipBox.checked = skipScenes;
+  skipBox.addEventListener('change', () => { skipScenes = skipBox.checked; store.set('tmj-skip', skipScenes ? '1' : '0'); skipBox.blur(); });
   function selectMode(key) {
     mode = MODES[key];
     document.querySelectorAll('.mode').forEach(b => b.classList.toggle('sel', b.dataset.mode === key));
