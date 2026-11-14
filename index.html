@@ -91,6 +91,7 @@
   .badge { display: inline-block; font: 800 10.5px Inter, sans-serif; letter-spacing: .06em; padding: 3px 8px; border-radius: 99px; vertical-align: 3px; margin-left: 6px; }
   .badge.normal { background: #dcebdc; color: #2e6b32; } .badge.hard { background: #f6d9d6; color: #a12a22; }
   .mode ul { margin: 0; padding-left: 16px; font-size: 12.5px; line-height: 1.5; color: #3b4356; }
+  .mode .best { margin-top: 8px; padding-top: 7px; border-top: 1px dashed #e2d8c2; font-size: 12px; font-weight: 700; color: #8a5a12; font-variant-numeric: tabular-nums; }
   .skipopt { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13.5px; color: #3b4356; cursor: pointer; }
   .skipopt input { position: absolute; opacity: 0; pointer-events: none; }
   .skipopt .sw { flex: none; position: relative; width: 36px; height: 20px; border-radius: 99px; background: #d8ccb2; transition: background .15s; }
@@ -120,6 +121,8 @@
   td:last-child { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
   .grade { display: inline-block; margin: 12px 0 4px; padding: 6px 12px; border: 3px double var(--red); color: var(--red);
     font-family: Fraunces, Georgia, serif; font-weight: 800; font-size: 20px; transform: rotate(-2deg); border-radius: 6px; }
+  .newbest { display: inline-block; margin: 12px 0 4px 10px; padding: 5px 10px; border-radius: 99px; background: var(--gold); color: var(--ink);
+    font: 800 12px Inter, sans-serif; letter-spacing: .04em; text-transform: uppercase; vertical-align: 4px; }
   .remark { font-style: italic; color: #3b4356; border-left: 3px solid var(--red); padding-left: 12px; }
 
   /* Touch controls */
@@ -182,6 +185,7 @@
           <li>Slower suspects, more time per case</li>
           <li>More Notices</li>
         </ul>
+        <div class="best hidden"></div>
       </button>
       <button class="mode" data-mode="kaspar">
         <div class="who">Kaspar Chen <span class="badge hard">HARD</span></div>
@@ -190,6 +194,7 @@
           <li>Faster, trickier suspects, less time</li>
           <li>Fewer Notices, cases worth 50% more</li>
         </ul>
+        <div class="best hidden"></div>
       </button>
     </div>
     <label class="skipopt"><input type="checkbox" id="skipScenes"><span class="sw"></span><span><b>Skip catch scenes</b> · keep driving after each catch</span></label>
@@ -198,9 +203,9 @@
     <ol class="steps">
       <li><span class="ic">🎯</span><span><b>Find suspects:</b> follow the red arrows.</span></li>
       <li><span class="ic">🟡</span><span><b>Catch them:</b> stay close to fill the gold ring. Ram them or throw a Notice to fill it faster.</span></li>
-      <li><span class="ic">✉️</span><span><b>Reload:</b> drive over dropped evidence and ✉️ stacks for more Notices.</span></li>
+      <li><span class="ic">✉️</span><span><b>Reload:</b> drive over ✉️ Notices on the road for more. Suspects drop them too.</span></li>
       <li><span class="ic">⏳</span><span><b>Be quick:</b> if a suspect's timer runs out, they get away.</span></li>
-      <li><span class="ic">🍚</span><span><b>Bonuses:</b> chicken rice for a speed boost. Quick catches in a row and the last 10 seconds pay extra.</span></li>
+      <li><span class="ic">🍗</span><span><b>Bonuses:</b> chicken rice for a speed boost. Quick catches in a row and the last 10 seconds pay extra.</span></li>
     </ol>
 
     <div class="startbar"><button class="btn" id="startBtn">Start Shift as <span id="startName" style="opacity:1;font-size:inherit;font-weight:800;margin:0">Ryan Li</span> <span class="kbd-only">Space</span></button></div>
@@ -220,8 +225,9 @@
       <tr><td>Best streak</td><td id="apStreak">–</td></tr>
       <tr><td>Biggest case</td><td id="apBig">–</td></tr>
       <tr><td>Revenue recovered</td><td id="apRev">$0</td></tr>
+      <tr><td>Personal best</td><td id="apBest">–</td></tr>
     </table>
-    <div class="grade" id="apGrade"></div>
+    <div class="grade" id="apGrade"></div><span class="newbest hidden" id="apNewBest">New personal best!</span>
     <p class="remark" id="apRemark"></p>
     <div class="startbar"><button class="btn" id="againBtn">Start New Shift <span class="kbd-only">Space</span></button>
     <button class="btn secondary" id="changeBtn">Change Officer</button></div>
@@ -255,7 +261,7 @@
       startNotices: 3, maxNotices: 5, hit: 0.5, spdMul: 0.85, caseTime: 25,
       caseLoad: [1, 2],   // cases at once in the first / second half of the shift
       juke: 0,            // how keen suspects are to swerve at a junction when you're on their tail
-      dropsNear: false,   // true: suspects only drop evidence when you're close behind them
+      dropsNear: false,   // true: suspects only drop Notices when you're close behind them
       valueMul: 1,        // case values
       pg: [250000, 500000, 900000, 1350000],
       remarks: [
@@ -275,6 +281,7 @@
         'Strong. Kaspar Chen is reminded that the pool car must be returned with a full tank.',
         'Outstanding. Kaspar Chen has been invited to share best practices at the next town hall. Attendance is compulsory.'] },
   };
+  for (const k in MODES) MODES[k].key = k;
   let mode = MODES.ryan;
 
   const T = 100, BLOCK = 4, NODES = 6, GRID = (NODES - 1) * BLOCK + 1, WORLD = GRID * T;
@@ -284,27 +291,22 @@
   // ================= Suspects =================
   const TYPES = {
     oliver: { name: 'Offshore Oliver', kind: 'sports', color: '#f2c230', spd: 190, value: 250000, offence: 'Undeclared offshore income',
-      drop: { icon: 'statement', label: 'Swiss bank statement' },
       taunts: ['Catch me in Monaco!', 'My money is on holiday!', 'Offshore is a state of mind!'],
       excuses: ['That money is just on holiday in the Caymans.', 'Offshore? I get seasick, how can?'],
       replies: ['Holiday is over. Please declare.', 'Then you won’t mind showing us the statements.'] },
     shell: { name: 'Shell Company Pte Ltd', kind: 'van', color: '#8d9aa8', spd: 160, value: 120000, offence: 'Layered shell entities',
-      drop: { icon: 'shell', label: 'A literal shell' },
       taunts: ['Which company? We have many!', 'Talk to our other director!', 'Our office is a letterbox!'],
       excuses: ['We are only a holding company!', 'I am just the director on paper.'],
       replies: ['Holding what, exactly?', 'Paper is our speciality, sir.'] },
     contractor: { name: 'Cash-Only Contractor', kind: 'truck', color: '#e0672f', spd: 140, value: 90000, offence: 'Unrecorded cash sales',
-      drop: { icon: 'cash', label: 'Bundle of cash' },
       taunts: ['Cash only, no receipt!', 'Discount if you pay cash!', 'Receipt? Never heard of it.'],
       excuses: ['Cash? What cash?', 'My dog ate all the receipts.'],
-      replies: ['The cash you dropped all over the road.', 'We will need a statement from the dog also.'] },
+      replies: ['Your cash sales left quite a paper trail.', 'We will need a statement from the dog also.'] },
     crypto: { name: 'Crypto Bro', kind: 'scooter', color: '#8e44ad', spd: 165, value: 150000, offence: 'Unreported trading income',
-      drop: { icon: 'nft', label: 'NFT' },
       taunts: ['HODL!', 'To the moon! 🚀', 'Have fun staying poor!'],
       excuses: ['Bro, it’s not income, it’s unrealised vibes.', 'It’s on the blockchain, nobody can see it.'],
       replies: ['Please bring the vibes to Revenue House.', 'The ledger is literally public, bro.'] },
     influencer: { name: 'Undeclared Influencer', kind: 'convertible', color: '#ff74b1', spd: 170, value: 80000, offence: 'Undeclared sponsorship income',
-      drop: { icon: 'ad', label: '#ad tag' },
       taunts: ['Like and subscribe!', 'Use my code TAXFREE!', 'This chase is going viral!'],
       excuses: ['It was a gifted collab, not income!', 'Wait, can I film this first?'],
       replies: ['Gifts for posts also count, ah.', 'Sure. Tag us: #RevenueHouse'],
@@ -413,7 +415,12 @@
   }
 
   // ================= City (fixed layout) =================
-  const ROOFS = ['#f3e2c0', '#dfe9ef', '#f4d3c0', '#d9e8d2', '#e9e2f3', '#f6e7a8', '#efd5dc', '#e7ecd9'];
+  // Ordinary blocks: glass offices round Revenue House (the CBD), HDB estates and shophouse rows further out
+  const GLASS = ['#5d8fb0', '#4f8293', '#7c8b9c', '#6aa1a6', '#4d6f99'];
+  const PASTEL = ['#f2c6c2', '#bfe0d2', '#f6e1a6', '#c8d8f0', '#f3d1b0', '#d9c8ec', '#f4ecdc', '#b9dbe0'];
+  const TILES = ['#c8643b', '#b9572f', '#d27447', '#bf6a40'];
+  const ACCENT = ['#d9534f', '#3d8fc4', '#5ba35b', '#e89a2e', '#8a6cc4', '#2f9e95'];
+  const HDB_BODY = '#efe8d9', PODIUM = '#ddd3c1';
   const blocks = [];
   const RH = { bi: 2, bj: 2 };   // Revenue House's block, beside the junction where every shift starts
   // Revenue House, after the real one: a stone podium with a curved, finned corner, and a tower whose curved
@@ -440,21 +447,66 @@
   }
 
   (function buildCity() {
-    const R = mulberry32(20261113), S = (BLOCK - 1) * T, pad = 26;
+    const R = mulberry32(20261113), S = (BLOCK - 1) * T, pad = 26, inner = S - 2 * pad;
+    const rp = arr => arr[Math.floor(R() * arr.length)];
+    // Four parks, spread out: never side by side, and at most one next to Revenue House
+    const touch = (a, c) => Math.abs(a[0] - c[0]) <= 1 && Math.abs(a[1] - c[1]) <= 1, rh = [RH.bi, RH.bj], parks = [];
+    for (let k = 0; k < 500 && parks.length < 4; k++) {
+      const c = [Math.floor(R() * (NODES - 1)), Math.floor(R() * (NODES - 1))];
+      if (c[0] === rh[0] && c[1] === rh[1] || parks.some(p => touch(p, c)) || touch(c, rh) && parks.some(p => touch(p, rh))) continue;
+      parks.push(c);
+    }
     for (let bi = 0; bi < NODES - 1; bi++) for (let bj = 0; bj < NODES - 1; bj++) {
-      const x = (bi * BLOCK + 1) * T, y = (bj * BLOCK + 1) * T;
-      const b = { x, y, S, park: R() < 0.17, buildings: [], trees: [] };
+      const x = (bi * BLOCK + 1) * T, y = (bj * BLOCK + 1) * T, xa = x + pad, ya = y + pad;
+      const b = { x, y, S, park: parks.some(p => p[0] === bi && p[1] === bj), buildings: [], trees: [] };
+      const tree = (u, v, r) => b.trees.push({ x: xa + u, y: ya + v, r, H: 18 });
       if (b.park) {
         for (let k = 0; k < 11; k++) { const r = 16 + R() * 15; b.trees.push({ x: x + pad + r + R() * (S - 2 * pad - 2 * r), y: y + pad + r + R() * (S - 2 * pad - 2 * r), r, H: 26 + R() * 14 }); }
       } else {
-        const inner = S - 2 * pad, gap = 24, g = (inner - gap) / 2, v = R();
-        const rects = v < 0.4 ? [[0, 0, g, g], [g + gap, 0, g, g], [0, g + gap, g, g], [g + gap, g + gap, g, g]]
-          : v < 0.68 ? [[0, 0, inner, g], [0, g + gap, inner, g]]
-          : v < 0.85 ? [[0, 0, g, inner], [g + gap, 0, g, inner]]
-          : [[0, 0, inner, g], [0, g + gap, g, g], [g + gap, g + gap, g, g]];
-        for (const [rx, ry, rw, rh] of rects) {
-          const roof = ROOFS[Math.floor(R() * ROOFS.length)];
-          b.buildings.push({ x: x + pad + rx, y: y + pad + ry, w: rw, h: rh, H: 45 + R() * 75, roof, wall: shade(roof, .8), num: 100 + Math.floor(R() * 800), seed: Math.floor(R() * 1e9) });
+        // Plans are in (u, v) across the block's paved area, `inner` wide
+        const add = (kind, u, v, w, hh, o) => b.buildings.push({ kind, x: xa + u, y: ya + v, w, h: hh, base: 0, seed: Math.floor(R() * 1e9), ...o });
+        const cbd = Math.max(Math.abs(bi - RH.bi), Math.abs(bj - RH.bj)) <= 1, s = R();
+        const style = cbd ? (s < .65 ? 'office' : 'shop') : (s < .5 ? 'hdb' : s < .85 ? 'shop' : 'office');
+        if (style === 'hdb') {
+          // An estate: one colour scheme, staggered slab blocks or four point blocks
+          const accent = rp(ACCENT), num = () => (100 + Math.floor(R() * 800)) + (R() < .3 ? rp(['A', 'B', 'C']) : '');
+          if (R() < .7) {
+            const across = R() < .5, L = 196, D = 46, gap = (inner - 3 * D) / 2;
+            for (let n = 0; n < 3; n++) {
+              const off = n % 2 ? inner - L : 0, at = n * (D + gap), o = { H: 85 + R() * 30, accent, num: num() };
+              if (across) add('hdb', off, at, L, D, o); else add('hdb', at, off, D, L, o);
+              if (n < 2) for (let k = 0; k < 2; k++) { const f = 20 + R() * (inner - 40), g = at + D + gap / 2; across ? tree(f, g, 10 + R() * 4) : tree(g, f, 10 + R() * 4); }
+            }
+          } else {
+            const q = 84;
+            for (const [u, v] of [[0, 0], [inner - q, 0], [0, inner - q], [inner - q, inner - q]]) add('hdb', u, v, q, q, { H: 105 + R() * 18, accent, num: num() });
+            for (let k = 0; k < 3; k++) tree(inner / 2 + (R() - .5) * 60, inner / 2 + (R() - .5) * 60, 11 + R() * 5);
+          }
+        } else if (style === 'shop') {
+          // Shophouse rows facing the four streets, round a back lane
+          const D = 54, gap = 14, side = inner - 2 * (D + gap);
+          for (const [u, v, w, hh, street] of [[0, 0, inner, D, 'n'], [0, inner - D, inner, D, 's'], [0, D + gap, D, side, 'w'], [inner - D, D + gap, D, side, 'e']]) {
+            const units = [], n = Math.round(Math.max(w, hh) / 17);
+            for (let i = 0; i < n; i++) { let c; do c = rp(PASTEL); while (c === units[i - 1]); units.push(c); }
+            add('shop', u, v, w, hh, { H: 24 + R() * 8, units, street });
+          }
+          for (let k = 0; k < 3; k++) tree(D + gap + 16 + R() * (side - 32), D + gap + 16 + R() * (side - 32), 9 + R() * 4);
+        } else {
+          const glass = rp(GLASS), o = R();
+          if (o < .3) {   // one tower on a podium with a roof garden
+            add('podium', 0, 0, inner, inner, { H: 28 });
+            add('office', 54, 54, inner - 108, inner - 108, { base: 28, H: 120 + R() * 25, glass, helipad: R() < .5 });
+          } else if (o < .65) {   // two towers and two low blocks
+            const q = 112, diag = R() < .5, lo = diag ? [[inner - q, 0], [0, inner - q]] : [[0, 0], [inner - q, inner - q]], hi = diag ? [[0, 0], [inner - q, inner - q]] : [[inner - q, 0], [0, inner - q]];
+            for (const [u, v] of lo) add('podium', u, v, q, q, { H: 30 });
+            add('office', hi[0][0], hi[0][1], q, q, { H: 100 + R() * 20, glass });
+            add('office', hi[1][0], hi[1][1], q, q, { H: 120 + R() * 25, glass, helipad: R() < .5 });
+          } else {   // two glass slabs with trees between
+            const D = 100, across = R() < .5, H1 = 70 + R() * 30, H2 = 70 + R() * 30;
+            if (across) { add('office', 0, 0, inner, D, { H: H1, glass }); add('office', 0, inner - D, inner, D, { H: H2, glass }); }
+            else { add('office', 0, 0, D, inner, { H: H1, glass }); add('office', inner - D, 0, D, inner, { H: H2, glass }); }
+            for (let k = 0; k < 4; k++) { const f = 20 + k * (inner - 40) / 3; across ? tree(f, inner / 2, 11) : tree(inner / 2, f, 11); }
+          }
         }
         for (let k = 0; k < 6; k++) {
           const side = Math.floor(R() * 4), f = 0.1 + R() * 0.8, i = 13;
@@ -610,8 +662,8 @@
     s.bumpCD -= dt;
     if ((s.caseT -= dt) <= 0) { escape(s); return; }
     if ((s.dropT -= dt) <= 0) {
-      s.dropT = rand(2.6, 3.4) * (s.key === 'contractor' ? 0.5 : 1);   // cash-only: drops it everywhere
-      if (ammo < mode.maxNotices && (!mode.dropsNear || Math.hypot(P.x - s.x, P.y - s.y) < CATCH_R * 2.5)) { items.push({ ...s.ty.drop, x: s.x, y: s.y, life: 12 }); if (items.length > 14) items.shift(); }
+      s.dropT = rand(2.6, 3.4) * (s.key === 'contractor' ? 0.5 : 1);   // cash-only: drops them twice as often
+      if (ammo < mode.maxNotices && (!mode.dropsNear || Math.hypot(P.x - s.x, P.y - s.y) < CATCH_R * 2.5)) { items.push({ icon: 'notice', x: s.x, y: s.y, life: 12 }); if (items.length > 14) items.shift(); }
     }
 
     const d = Math.hypot(P.x - s.x, P.y - s.y);
@@ -848,7 +900,7 @@
       const it = items[i];
       if (ammo < mode.maxNotices && Math.hypot(it.x - P.x, it.y - P.y) < 34) {
         ammo++; items.splice(i, 1);
-        floater(it.x, it.y - 30, it.icon === 'nft' ? 'NFT (worth $0.00), still evidence \u00b7 +1 Notice' : `${it.label} \u00b7 +1 Notice`, it.icon === 'nft' ? '#8e44ad' : RED);
+        floater(it.x, it.y - 30, '+1 Notice', RED);
       }
     }
   }
@@ -867,7 +919,7 @@
   }
   function throwNotice() {
     if (noticeCD > 0) return;
-    if (ammo <= 0) { noticeCD = 0.8; toast('Out of Notices! Collect evidence to draft more.', RED); return; }
+    if (ammo <= 0) { noticeCD = 0.8; toast('Out of Notices! Drive over Notices on the road to pick up more.', RED); return; }
     ammo--; noticeCD = NOTICE_COOLDOWN; stats.thrown++;
     const target = noticeTarget(), sp = 720 + Math.max(0, P.spd);
     notices.push({ x: P.x + Math.cos(P.a) * 26, y: P.y + Math.sin(P.a) * 26, vx: Math.cos(P.a) * sp, vy: Math.sin(P.a) * sp, target, life: NOTICE_LIFE, rot: 0 });
@@ -1061,42 +1113,24 @@
     c.restore();
   }
 
+  // A Notice: the same envelope for the +2 stacks on the road and the +1 Notices suspects drop
+  function envelope(c) {
+    c.fillStyle = '#fff'; c.fillRect(-11, -7, 22, 14); c.strokeStyle = RED; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(-11, -7); c.lineTo(0, 1); c.lineTo(11, -7); c.stroke();
+  }
   function drawItem(it) {
     const bob = Math.sin(t * 4 + it.x * .1) * 3, x = it.x, y = it.y + bob;
     if (it.life !== undefined && it.life < 3 && Math.floor(t * 8) % 2) return;
     ctx.fillStyle = 'rgba(15,20,30,.22)'; ctx.beginPath(); ctx.ellipse(it.x + 3, it.y + 6, 13, 7, 0, 0, 7); ctx.fill();
     ctx.save(); ctx.translate(x, y);
     if (it.icon === 'rice') {
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(0, 0, 17, 13, 0, 0, 7); ctx.fill();
-      ctx.strokeStyle = '#7aa7d8'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(0, 0, 15, 11, 0, 0, 7); ctx.stroke();
-      ctx.fillStyle = '#f6f0e0'; ctx.beginPath(); ctx.arc(-5, 1, 7.5, 0, 7); ctx.fill();
-      ctx.fillStyle = '#efc98a'; for (const o of [-2, 2, 6]) { rr(ctx, 1 + o * .6, -3 + o * .2, 9, 3.2, 1.5); ctx.fill(); }
-      ctx.fillStyle = '#6fae4f'; ctx.beginPath(); ctx.arc(9, -6, 2.4, 0, 7); ctx.arc(11.5, -2.5, 2.4, 0, 7); ctx.fill();
-      ctx.fillStyle = '#d23a2f'; ctx.beginPath(); ctx.arc(-11, -6, 2.2, 0, 7); ctx.fill();
+      ctx.drawImage(CHICKEN_IMG, -22, -22, 44, 44);
       ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2;
-      for (const o of [-6, 2]) { ctx.beginPath(); ctx.moveTo(o, -12); ctx.quadraticCurveTo(o + 4 * Math.sin(t * 3 + o), -18, o, -24); ctx.stroke(); }
+      for (const o of [-6, 2]) { ctx.beginPath(); ctx.moveTo(o, -14); ctx.quadraticCurveTo(o + 4 * Math.sin(t * 3 + o), -20, o, -26); ctx.stroke(); }
     } else if (it.icon === 'stack') {
-      for (let i = 2; i >= 0; i--) { ctx.save(); ctx.translate(i * 2.5, -i * 2.5); ctx.rotate(-.15 + i * .12);
-        ctx.fillStyle = '#fff'; ctx.fillRect(-11, -7, 22, 14); ctx.strokeStyle = RED; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(-11, -7); ctx.lineTo(0, 1); ctx.lineTo(11, -7); ctx.stroke(); ctx.restore(); }
-    } else if (it.icon === 'cash') {
-      ctx.rotate(.3); ctx.fillStyle = '#2e7d32'; rr(ctx, -13, -8, 26, 16, 3); ctx.fill();
-      ctx.fillStyle = '#c8f2c0'; ctx.font = `800 12px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('$', 0, 1);
-    } else if (it.icon === 'statement') {
-      ctx.rotate(-.2); ctx.fillStyle = '#fff'; ctx.fillRect(-10, -13, 20, 26);
-      ctx.fillStyle = '#d23a2f'; ctx.fillRect(-10, -13, 20, 5);
-      ctx.fillStyle = '#c5c9d3'; for (let i = 0; i < 4; i++) ctx.fillRect(-7, -4 + i * 4.5, 14 - (i % 2) * 5, 2);
-    } else if (it.icon === 'shell') {
-      ctx.fillStyle = '#f6d7c3'; ctx.beginPath(); ctx.moveTo(0, 10); ctx.arc(0, 10, 15, Math.PI * 1.15, Math.PI * 1.85); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = '#d99b7d'; ctx.lineWidth = 1.5;
-      for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(0, 10); ctx.lineTo(Math.sin(i * .28) * 14, 10 - Math.cos(i * .28) * 14); ctx.stroke(); }
-    } else if (it.icon === 'nft') {
-      ctx.fillStyle = '#8e44ad'; rr(ctx, -12, -12, 24, 24, 3); ctx.fill();
-      ctx.fillStyle = '#f1c40f'; ctx.fillRect(-6, -6, 4, 4); ctx.fillRect(2, -6, 4, 4); ctx.fillRect(-6, 3, 12, 3);
-      ctx.fillStyle = '#fff'; ctx.font = `800 7px ${UI}`; ctx.textAlign = 'center'; ctx.fillText('NFT', 0, 11);
-    } else if (it.icon === 'ad') {
-      ctx.rotate(.15); ctx.fillStyle = '#ff74b1'; rr(ctx, -15, -9, 30, 18, 9); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.font = `800 11px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('#ad', 0, 1);
+      for (let i = 2; i >= 0; i--) { ctx.save(); ctx.translate(i * 2.5, -i * 2.5); ctx.rotate(-.15 + i * .12); envelope(ctx); ctx.restore(); }
+    } else if (it.icon === 'notice') {
+      ctx.rotate(-.12); envelope(ctx);
     }
     ctx.restore();
   }
@@ -1122,20 +1156,36 @@
   function wall(x1, y1, x2, y2, ox, oy) {
     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x2 + ox, y2 + oy); ctx.lineTo(x1 + ox, y1 + oy); ctx.closePath(); ctx.fill();
   }
+  // Within a block, buildings further from the camera go first: nearer ones lean away from the camera, over them.
+  // A tower and its podium share a centre, so the lower one goes first.
+  let depthX = 0, depthY = 0;
+  const depth = b => (b.x + b.w / 2 - depthX) ** 2 + (b.y + b.h / 2 - depthY) ** 2;
+  const byDepth = (p, q) => depth(q) - depth(p) || p.H - q.H;
   function drawBuilding(b, ccx, ccy) {
-    const k = b.H / 950, ox = (b.x + b.w / 2 - ccx) * k, oy = (b.y + b.h / 2 - ccy) * k;
-    const { x, y, w, h } = b;
+    // Walls run from height b.base (a tower on a podium) up to b.H, leaning away from the camera
+    const mx = b.x + b.w / 2 - ccx, my = b.y + b.h / 2 - ccy, k0 = b.base / 950, k1 = b.H / 950;
+    const x = b.x + mx * k0, y = b.y + my * k0, ox = mx * (k1 - k0), oy = my * (k1 - k0), { w, h } = b;
     ctx.fillStyle = b.wall; ctx.fillRect(x, y, w, h);
-    // Only the two walls facing the camera can be seen (one along x at height fy, one along y at fx); the roof covers the others
+    // Only the two walls facing the camera can be seen (one along x at height fy, one along y at fx); the roof covers the others.
+    // Shophouse rows paint each unit's front its own colour.
     const fy = oy > 0 ? y : y + h, fx = ox > 0 ? x : x + w;
-    ctx.fillStyle = oy > 0 ? b.faceN : b.faceS; wall(x, fy, x + w, fy, ox, oy);
-    ctx.fillStyle = ox > 0 ? b.faceW : b.faceE; wall(fx, y, fx, y + h, ox, oy);
-    ctx.strokeStyle = 'rgba(40,40,60,.10)'; ctx.lineWidth = 1.2; ctx.beginPath();
+    if (b.units && w >= h) { const u = oy > 0 ? b.unitsDark : b.unitsLight, uw = w / u.length; u.forEach((c, i) => { ctx.fillStyle = c; wall(x + i * uw, fy, x + (i + 1) * uw + .5, fy, ox, oy); }); }
+    else { ctx.fillStyle = oy > 0 ? b.faceN : b.faceS; wall(x, fy, x + w, fy, ox, oy); }
+    if (b.units && h > w) { const u = ox > 0 ? b.unitsDark : b.unitsLight, uh = h / u.length; u.forEach((c, i) => { ctx.fillStyle = c; wall(fx, y + i * uh, fx, y + (i + 1) * uh + .5, ox, oy); }); }
+    else { ctx.fillStyle = ox > 0 ? b.faceW : b.faceE; wall(fx, y, fx, y + h, ox, oy); }
+    ctx.strokeStyle = b.lineColor; ctx.lineWidth = 1.2; ctx.beginPath();
     for (let i = 1; i < b.floors; i++) {
       const f = i / b.floors, dx = ox * f, dy = oy * f;
       ctx.moveTo(x + dx, fy + dy); ctx.lineTo(x + w + dx, fy + dy); ctx.moveTo(fx + dx, y + dy); ctx.lineTo(fx + dx, y + h + dy);
     }
     ctx.stroke();
+    if (b.fins) {   // glass offices: mullions up the walls
+      ctx.strokeStyle = b.finColor; ctx.lineWidth = 1; ctx.beginPath();
+      const nx = Math.max(1, Math.round(w / b.fins)), ny = Math.max(1, Math.round(h / b.fins));
+      for (let j = 1; j < nx; j++) { const px = x + w * j / nx; ctx.moveTo(px, fy); ctx.lineTo(px + ox, fy + oy); }
+      for (let j = 1; j < ny; j++) { const py = y + h * j / ny; ctx.moveTo(fx, py); ctx.lineTo(fx + ox, py + oy); }
+      ctx.stroke();
+    }
     ctx.drawImage(b.img, x + ox, y + oy, w, h);
   }
 
@@ -1310,8 +1360,10 @@
     }
 
     // Trees and buildings on top (pseudo-3D)
+    depthX = cx; depthY = cy;
     for (const b of blocks) {
       if (!inView(b.x, b.y, b.S, b.S, 260)) continue;
+      b.buildings.sort(byDepth);
       for (const bd of b.buildings) drawBuilding(bd, cx, cy);
       for (const tr of b.trees) drawTreeCanopy(tr, cx, cy);
     }
@@ -1550,6 +1602,10 @@
     $('apRev').textContent = money(score);
     $('apGrade').textContent = 'Rating: ' + grade;
     $('apRemark').textContent = '“' + remark + '” — ' + mode.boss;
+    const prev = loadBest(mode.key), isNew = score > 0 && (!prev || score > prev.score);
+    if (isNew) store.set('tmj-best-' + mode.key, JSON.stringify({ score: Math.round(score), grade, cases }));
+    $('apBest').textContent = isNew ? (prev ? `Beat ${money(prev.score)}` : 'First on record') : prev ? `${money(prev.score)} (${prev.grade})` : '–';
+    $('apNewBest').classList.toggle('hidden', !isNew);
     $('over').classList.remove('hidden'); $('hud').classList.add('hidden'); showTouch(false); padEnd();
   }
 
@@ -1564,8 +1620,20 @@
     $('startName').textContent = mode.name;
   }
   document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', e => { e.currentTarget.blur(); selectMode(b.dataset.mode); }));
+  // Personal bests, one per officer. Kept in this browser only (see store), so a private window forgets them when it closes.
+  function loadBest(key) {
+    try { const b = JSON.parse(store.get('tmj-best-' + key)); return b && b.score > 0 ? b : null; } catch (e) { return null; }
+  }
+  function showBests() {
+    document.querySelectorAll('.mode').forEach(btn => {
+      const b = loadBest(btn.dataset.mode), el = btn.querySelector('.best');
+      el.textContent = b ? `Personal best: ${money(b.score)} · ${b.grade}` : '';
+      el.classList.toggle('hidden', !b);
+    });
+  }
+  showBests();
   function toTitle() {
-    state = 'title';
+    state = 'title'; showBests();
     $('over').classList.add('hidden'); $('hud').classList.add('hidden'); $('title').classList.remove('hidden');
   }
   function action() {
@@ -1627,7 +1695,7 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
 
   // ================= Pre-rendering (done once, so frames stay cheap) =================
-  let GROUND = null, TREE_IMG = null;
+  let GROUND = null, TREE_IMG = null, CHICKEN_IMG = null;
   function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h)); return c; }
 
   // Roads, markings, pavements, parks and ground shadows never change: draw them once.
@@ -1676,24 +1744,88 @@
   }
 
   // Each building's roof (parapet, water tanks, block number) becomes a small image.
+  // Walls and roofs for each style. Roofs are drawn once into images; only the walls are drawn each frame.
+  function faces(bd, c, n = .72, s = .9, w = .8, e = .95) { bd.faceN = shade(c, n); bd.faceS = shade(c, s); bd.faceW = shade(c, w); bd.faceE = shade(c, e); bd.wall = shade(c, .7); }
+  function roofBox(g, x, y, w, h, c) { g.fillStyle = 'rgba(0,0,0,.14)'; g.fillRect(x + 2.5, y + 2.5, w, h); g.fillStyle = c; g.fillRect(x, y, w, h); }
+  const BUILDING_STYLE = {
+    hdb(bd, g, w, h) {
+      // Cream blocks with the estate colour on the end walls, corridor lines, lift motor rooms and the block number on the roof
+      const along = w >= h;
+      faces(bd, HDB_BODY);
+      const a = [shade(bd.accent, .8), shade(bd.accent, .95)];
+      if (along) { bd.faceW = a[0]; bd.faceE = a[1]; } else { bd.faceN = a[0]; bd.faceS = a[1]; }
+      bd.floors = Math.round(bd.H / 8); bd.lineColor = 'rgba(70,60,45,.17)';
+      g.fillStyle = '#dcd7cd'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = bd.accent; g.lineWidth = 3; g.strokeRect(1.5, 1.5, w - 3, h - 3);
+      // (cu, cv): along the block and across it
+      const L = Math.max(w, h), D = Math.min(w, h), slab = L > 120;
+      const box = (cu, cv) => along ? roofBox(g, cu - 8, cv - 7, 16, 14, '#c3bdb1') : roofBox(g, cv - 7, cu - 8, 14, 16, '#c3bdb1');
+      if (slab) { box(L * .1, D / 2); box(L * .9, D / 2); } else { box(L * .25, D * .25); box(L * .75, D * .25); }
+      g.save(); g.translate(w / 2, slab ? h / 2 : h * .62); if (!along) g.rotate(-Math.PI / 2);
+      g.fillStyle = 'rgba(27,35,51,.5)'; g.font = `800 ${Math.min(20, D * .42)}px ${UI}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(bd.num, 0, 1); g.restore();
+    },
+    shop(bd, g, w, h, R) {
+      // Low rows of pastel shopfronts under orange tiled roofs: ridge along the row, party walls between units
+      bd.unitsDark = bd.units.map(c => shade(c, .86)); bd.unitsLight = bd.units.map(c => shade(c, 1));
+      faces(bd, bd.units[0], .8, .95, .86, 1);
+      bd.floors = 2; bd.lineColor = 'rgba(80,50,35,.18)';
+      const along = w >= h, L = along ? w : h, D = along ? h : w, n = bd.units.length, uw = L / n;
+      g.save(); if (!along) { g.translate(w, 0); g.rotate(Math.PI / 2); }   // draw every row as if it ran left to right
+      const front = along ? (bd.street === 'n' ? 0 : D - 4) : (bd.street === 'e' ? 0 : D - 4);
+      // Two slopes per unit, the street-side one lighter, so each roof reads as pitched
+      const frontTop = front === 0;
+      for (let i = 0; i < n; i++) {
+        const u = i * uw, tile = TILES[Math.floor(R() * TILES.length)];
+        g.fillStyle = frontTop ? tile : shade(tile, .72); g.fillRect(u, 0, uw + .5, D / 2);
+        g.fillStyle = frontTop ? shade(tile, .72) : tile; g.fillRect(u, D / 2, uw + .5, D / 2);
+        g.strokeStyle = 'rgba(90,30,10,.12)'; g.lineWidth = .8; g.beginPath();
+        for (let k = u + 2.5; k < u + uw - 1; k += 2.6) { g.moveTo(k, 2); g.lineTo(k, D - 2); }
+        g.stroke();
+        g.fillStyle = bd.units[i]; g.fillRect(u, front, uw + .5, 4);
+      }
+      g.strokeStyle = 'rgba(245,235,220,.45)'; g.lineWidth = 1; g.beginPath();
+      for (let i = 1; i < n; i++) { g.moveTo(i * uw, 0); g.lineTo(i * uw, D); }
+      g.stroke(); g.restore();
+    },
+    office(bd, g, w, h, R) {
+      // Glass towers: storey lines and mullions on the walls, plant and sometimes a helipad on the roof
+      faces(bd, bd.glass);
+      bd.floors = Math.round((bd.H - bd.base) / 11); bd.lineColor = 'rgba(255,255,255,.17)';
+      bd.fins = 9; bd.finColor = 'rgba(15,30,50,.2)';
+      g.fillStyle = '#a9b2bc'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = 'rgba(255,255,255,.4)'; g.lineWidth = 3; g.strokeRect(4, 4, w - 8, h - 8);
+      if (bd.helipad) {
+        const r = Math.min(w, h) * .26;
+        roofBox(g, 10, 10, 20, 14, '#ccd1d7'); roofBox(g, 10, 28, 14, 10, '#ccd1d7');
+        g.fillStyle = '#7d8792'; g.beginPath(); g.arc(w / 2 + 6, h / 2 + 6, r, 0, 7); g.fill();
+        g.strokeStyle = '#f2c230'; g.lineWidth = 2.5; g.beginPath(); g.arc(w / 2 + 6, h / 2 + 6, r - 4, 0, 7); g.stroke();
+        g.fillStyle = '#fff'; g.font = `800 ${Math.round(r)}px ${UI}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('H', w / 2 + 6, h / 2 + 7);
+      } else {
+        for (let i = 0; i < 3; i++) roofBox(g, 12 + R() * (w - 44), 12 + R() * (h - 36), 20, 14, '#ccd1d7');
+      }
+    },
+    podium(bd, g, w, h, R) {
+      // Low stone podiums with roof gardens
+      faces(bd, PODIUM, .78, .95, .86, 1);
+      bd.floors = 3; bd.lineColor = 'rgba(70,60,45,.15)';
+      g.fillStyle = '#e6dfd0'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = 'rgba(0,0,0,.08)'; g.lineWidth = 3; g.strokeRect(5, 5, w - 10, h - 10);
+      for (let i = 0, n = Math.round((w + h) / 45); i < n; i++) {
+        const edge = Math.floor(R() * 4), f = 14 + R() * (Math.max(w, h) - 28), pw = 22, ph = 10;
+        const [px, py] = edge === 0 ? [Math.min(f, w - 36), 12] : edge === 1 ? [Math.min(f, w - 36), h - 22] : edge === 2 ? [12, Math.min(f, h - 36)] : [w - 22, Math.min(f, h - 36)];
+        const [ww, hh] = edge < 2 ? [pw, ph] : [ph, pw];
+        g.fillStyle = '#8fbf72'; rr(g, px, py, ww, hh, 4); g.fill();
+        g.fillStyle = '#6fa457'; g.beginPath(); g.arc(px + ww / 2, py + hh / 2, 3.5, 0, 7); g.fill();
+      }
+    },
+  };
   function buildBuildingSprites() {
     const RS = COARSE ? 1 : 1.25;
     for (const b of blocks) for (const bd of b.buildings) {
-      bd.faceN = shade(bd.roof, .72); bd.faceS = shade(bd.roof, .9); bd.faceW = shade(bd.roof, .8); bd.faceE = shade(bd.roof, .95);
-      bd.floors = Math.max(3, Math.round(bd.H / 13));
-      const c = makeCanvas(bd.w * RS, bd.h * RS), g = c.getContext('2d'), w = bd.w, h = bd.h;
+      const c = makeCanvas(bd.w * RS, bd.h * RS), g = c.getContext('2d');
       g.scale(RS, RS);
-      g.fillStyle = bd.roof; g.fillRect(0, 0, w, h);
-      g.strokeStyle = 'rgba(0,0,0,.09)'; g.lineWidth = 3; g.strokeRect(5, 5, w - 10, h - 10);
-      const R = mulberry32(bd.seed);
-      for (let i = 0; i < 2; i++) {
-        const tx = 16 + R() * (w - 50), ty = 16 + R() * (h - 44);
-        g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(tx + 3, ty + 3, 22, 16);
-        g.fillStyle = '#c9ced6'; g.fillRect(tx, ty, 22, 16);
-        g.fillStyle = '#aeb4be'; g.fillRect(tx + 2, ty + 2, 18, 4);
-      }
-      g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillStyle = 'rgba(27,35,51,.28)'; g.font = `800 ${Math.min(22, w / 5)}px ${UI}`; g.fillText(bd.num, w / 2, h / 2 + 8);
+      BUILDING_STYLE[bd.kind](bd, g, bd.w, bd.h, mulberry32(bd.seed));
       bd.img = c;
     }
   }
@@ -1708,8 +1840,21 @@
     return c;
   }
 
+  // Chicken rice: a drumstick emoji on a plate. Drawn once up front, because the first emoji on a canvas
+  // makes the browser search its fonts, which would freeze the game for a moment mid-shift.
+  function buildChicken() {
+    const n = 44, S = 2, c = makeCanvas(n * S, n * S), g = c.getContext('2d');
+    g.scale(S, S);
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(n / 2, n / 2, 17, 0, 7); g.fill();
+    g.strokeStyle = '#7aa7d8'; g.lineWidth = 1.5; g.beginPath(); g.arc(n / 2, n / 2, 15, 0, 7); g.stroke();
+    g.font = '22px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('\u{1F357}', n / 2, n / 2 + 1.5);
+    return c;
+  }
+
   function prerender() {
     GROUND = buildGround();
+    CHICKEN_IMG = buildChicken();
     buildBuildingSprites();
     TREE_IMG = buildTree();
     // Re-draw roof numbers once web fonts have loaded, so they use the right font
