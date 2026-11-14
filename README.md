@@ -35,9 +35,8 @@ Press a turn just before a junction and the car takes it for you. Touch-screen l
 - **Extras.**
   - Chicken rice 🍗 gives a speed boost.
   - Catching suspects back to back builds a streak bonus.
-  - In the last 10 seconds, the year-end rush, every case is worth double.
 
-At the end of the shift you get a performance appraisal and a PG grade. Your best shift for each officer is saved as a personal best and shown on the officer's card. It is kept in your browser on that device only, so a private or incognito window forgets it when you close it.
+At the end of the shift you get a performance appraisal and a PG grade. Your best shift for each officer is saved as a personal best and shown on the officer's card, with its PG grade. It is kept in your browser on that device only, so a private or incognito window forgets it when you close it.
 
 ### Officers
 

@@ -46,7 +46,6 @@
   .bar > div { height: 100%; background: linear-gradient(90deg, var(--red), var(--gold)); border-radius: 3px; }
   .streak { margin-top: 6px; font-size: 11.5px; font-weight: 800; color: #b8741a; }
   .streak .bar { height: 4px; margin-top: 3px; } .streak .bar > div { background: #e0a43a; }
-  #timeLabel.rush { color: #b8741a; font-weight: 700; }
 
   @media (max-height: 500px) {
     #hud { top: max(8px, env(safe-area-inset-top)); }
@@ -91,7 +90,17 @@
   .badge { display: inline-block; font: 800 10.5px Inter, sans-serif; letter-spacing: .06em; padding: 3px 8px; border-radius: 99px; vertical-align: 3px; margin-left: 6px; }
   .badge.normal { background: #dcebdc; color: #2e6b32; } .badge.hard { background: #f6d9d6; color: #a12a22; }
   .mode ul { margin: 0; padding-left: 16px; font-size: 12.5px; line-height: 1.5; color: #3b4356; }
-  .mode .best { margin-top: 8px; padding-top: 7px; border-top: 1px dashed #e2d8c2; font-size: 12px; font-weight: 700; color: #8a5a12; font-variant-numeric: tabular-nums; }
+  /* Personal best on each officer card, styled like an entry in a personnel file */
+  .record { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #e2d8c2; }
+  .rec-head { display: flex; align-items: center; gap: 8px; }
+  .rec-label { font: 500 10px "IBM Plex Mono", "Courier New", monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .commend { font: 800 10px Inter, sans-serif; letter-spacing: .05em; text-transform: uppercase; color: #6b4a00; background: var(--gold); padding: 2px 7px; border-radius: 99px; }
+  .rec-amt { display: flex; align-items: center; font: 800 20px Fraunces, Georgia, serif; font-variant-numeric: tabular-nums; margin-top: 1px; }
+  .rec-amt small { font: 600 12px Inter, sans-serif; color: var(--muted); margin-left: 8px; }
+  .pgchip { margin-left: auto; font: 800 12px Inter, sans-serif; letter-spacing: .03em; padding: 4px 10px; border-radius: 6px; background: var(--red); color: #fff; }
+  .pgchip.top { background: #c99400; }
+  .rec-none { font-size: 13px; font-style: italic; color: #9a9fab; margin: 4px 0 2px; }
+
   .skipopt { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13.5px; color: #3b4356; cursor: pointer; }
   .skipopt input { position: absolute; opacity: 0; pointer-events: none; }
   .skipopt .sw { flex: none; position: relative; width: 36px; height: 20px; border-radius: 99px; background: #d8ccb2; transition: background .15s; }
@@ -185,7 +194,7 @@
           <li>Slower suspects, more time per case</li>
           <li>More Notices</li>
         </ul>
-        <div class="best hidden"></div>
+        <div class="record empty"></div>
       </button>
       <button class="mode" data-mode="kaspar">
         <div class="who">Kaspar Chen <span class="badge hard">HARD</span></div>
@@ -194,7 +203,7 @@
           <li>Faster, trickier suspects, less time</li>
           <li>Fewer Notices, cases worth 50% more</li>
         </ul>
-        <div class="best hidden"></div>
+        <div class="record empty"></div>
       </button>
     </div>
     <label class="skipopt"><input type="checkbox" id="skipScenes"><span class="sw"></span><span><b>Skip catch scenes</b> · keep driving after each catch</span></label>
@@ -205,7 +214,7 @@
       <li><span class="ic">🟡</span><span><b>Catch them:</b> stay close to fill the gold ring. Ram them or throw a Notice to fill it faster.</span></li>
       <li><span class="ic">✉️</span><span><b>Reload:</b> drive over ✉️ Notices on the road for more. Suspects drop them too.</span></li>
       <li><span class="ic">⏳</span><span><b>Be quick:</b> if a suspect's timer runs out, they get away.</span></li>
-      <li><span class="ic">🍗</span><span><b>Bonuses:</b> chicken rice for a speed boost. Quick catches in a row and the last 10 seconds pay extra.</span></li>
+      <li><span class="ic">🍗</span><span><b>Bonuses:</b> chicken rice for a speed boost. Quick catches in a row pay extra.</span></li>
     </ol>
 
     <div class="startbar"><button class="btn" id="startBtn">Start Shift as <span id="startName" style="opacity:1;font-size:inherit;font-weight:800;margin:0">Ryan Li</span> <span class="kbd-only">Space</span></button></div>
@@ -252,7 +261,6 @@
   const NOTICE_LIFE = 0.6;      // seconds a Notice flies before dropping (about one screen)
   const NOTICE_CAP = 0.9;       // Notices can fill the ring this far; drive in close to finish the catch
   const STREAK_WINDOW = 12;     // catch again within this many seconds to build a streak
-  const YEAR_END = 10;          // in the last seconds of the shift, cases are worth double
   const WORKS = 2;              // road stretches closed for tunnelling works near Revenue House
 
   // ================= Officers (game modes) =================
@@ -263,7 +271,7 @@
       juke: 0,            // how keen suspects are to swerve at a junction when you're on their tail
       dropsNear: false,   // true: suspects only drop Notices when you're close behind them
       valueMul: 1,        // case values
-      pg: [250000, 500000, 900000, 1350000],
+      pg: [300000, 500000, 900000, 1500000],
       remarks: [
         'Ryan Li spent most of the shift looking for parking. Please see HR, and bring supporting documents.',
         'Ryan Li is reminded that the Tax Mobile of Justice does go faster than 40 km/h.',
@@ -525,7 +533,7 @@
   // ================= State =================
   let state = 'title', ammo = 0, stacks = [], P, suspects, items, rices, notices, particles, skids, floaters, toasts, stamp, bust;
   let score, shownScore, cases, timeLeft, nextSpawn, lastType, noticeCD, endT, stats, streak, lastCatchAt, overAt = 0, t = 0;
-  let yearEnd = false, tutorial = false;
+  let tutorial = false;
   let skipScenes = store.get('tmj-skip') === '1';   // "Skip catch scenes" on the title page
   const cam = { x: WORLD / 2, y: WORLD / 2, z: 1 };
   const keys = { up: false, down: false, left: false, right: false };
@@ -557,7 +565,7 @@
     P = { x: nodeX(3), y: nodeX(3), a: -Math.PI / 2, spd: 0, r: 15, boost: 0, px: 0, py: 0, rear: null, queue: null, lock: null };
     suspects = []; items = []; rices = []; notices = []; particles = []; skids = []; floaters = []; toasts = [];
     stamp = null; bust = null; score = 0; shownScore = 0; cases = 0; timeLeft = ROUND_TIME; nextSpawn = 0.8;
-    lastType = null; noticeCD = 0; streak = 0; lastCatchAt = -99; yearEnd = false;
+    lastType = null; noticeCD = 0; streak = 0; lastCatchAt = -99;
     planWorks();
     stats = { thrown: 0, hits: 0, biggest: null, escaped: 0, bestStreak: 0 };
     for (let i = 0; i < 4; i++) rices.push(randomRoadPoint());
@@ -699,18 +707,18 @@
     s.say = null; s.daze = 0; s.meter = 1; notices.length = 0;
   }
   function quickCatch(s) {
-    const { val, mult } = scoreCatch(s), m = mult * (yearEnd ? 2 : 1);
+    const { val, mult } = scoreCatch(s), m = mult;
     burst(s.x, s.y, 30, { kind: 'paper', colors: ['#ffffff', '#f7f1e3', '#dff0d8', '#fde9a8'], spd: 300, spdMin: 100, life: 1.2, size: 8 });
     // Just the amount, kept short so it doesn't cover the road ahead
     floater(s.x, s.y - 24, '+' + money(val) + (m > 1 ? ` ×${m}` : ''), m > 1 ? '#b8741a' : '#2e7d32');
     removeCaught(s);
   }
-  // Score a catch: streak, year-end rush, stats. Returns the amount and the streak multiplier.
+  // Score a catch: streak, stats. Returns the amount and the streak multiplier.
   function scoreCatch(s) {
     const base = s.ty.value * mode.valueMul * (s.gen ? 0.45 : 1), elapsed = ROUND_TIME - timeLeft;
     streak = elapsed - lastCatchAt <= STREAK_WINDOW ? streak + 1 : 1; lastCatchAt = elapsed;
     stats.bestStreak = Math.max(stats.bestStreak, streak);
-    const mult = 1 + 0.25 * (Math.min(streak, 5) - 1), val = Math.round(base * mult * (yearEnd ? 2 : 1));
+    const mult = 1 + 0.25 * (Math.min(streak, 5) - 1), val = Math.round(base * mult);
     score += val; cases++;
     if (!stats.biggest || val > stats.biggest.val) stats.biggest = { name: s.ty.name, val };
     if (s.tutor) { tutorial = false; store.set('tmj-trained', '1'); }
@@ -723,7 +731,7 @@
       const s = bust.s, { val, mult } = scoreCatch(s);
       bust.stamped = true;
       if (mult > 1) toast(`Efficiency bonus ×${mult} (${streak} in a row)`, '#b8741a');
-      stamp = { t: 0, dur: 1.8, name: s.ty.name + (s.gen ? ' (Subsidiary)' : ''), val, ref: s.ref, offence: s.ty.offence, mult, rush: yearEnd };
+      stamp = { t: 0, dur: 1.8, name: s.ty.name + (s.gen ? ' (Subsidiary)' : ''), val, ref: s.ref, offence: s.ty.offence, mult };
       burst(s.x, s.y, 46, { kind: 'paper', colors: ['#ffffff', '#f7f1e3', '#dff0d8', '#fde9a8'], spd: 380, spdMin: 120, life: 1.6, size: 9 });
     }
     if (bust.t >= 3.3) finishBust();
@@ -988,7 +996,6 @@
 
     timeLeft -= dt;
     if (timeLeft <= 0) { timeLeft = 0; state = 'ending'; endT = 1.8; return; }
-    if (!yearEnd && timeLeft <= YEAR_END) { yearEnd = true; toast('Year-end rush! Every case is now worth double', '#b8741a'); }
 
     noticeCD -= dt;
     updatePlayer(dt, true);
@@ -1020,8 +1027,6 @@
     setHUD('time', 'text', Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'));
     setHUD('time', 'urgent', timeLeft <= 10 && state === 'play');
     setHUD('timebar', 'width', (Math.round(timeLeft / ROUND_TIME * 200) / 2) + '%');
-    setHUD('timeLabel', 'text', yearEnd ? 'Year-end rush \u00d72' : 'Time Bar');
-    setHUD('timeLabel', 'rush', yearEnd);
     // Streak: how long is left to catch the next one for a bigger bonus
     const since = ROUND_TIME - timeLeft - lastCatchAt, live = state === 'play' && streak > 0 && since < STREAK_WINDOW;
     setHUD('streakRow', 'hidden', !live);
@@ -1547,9 +1552,9 @@
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillStyle = INK; ctx.font = `800 18px ${DISPLAY}`; ctx.fillText(info.name, cx, cy + 74);
       const line2 = info.offence + '  ·  Recovered ' + money(info.val);
-      const line3 = (info.rush ? 'YEAR-END \u00d72  \u00b7  ' : '') + (info.mult > 1 ? `STREAK \u00d7${info.mult}  \u00b7  ` : '') + 'CASE REF ' + info.ref;
+      const line3 = (info.mult > 1 ? `STREAK \u00d7${info.mult}  \u00b7  ` : '') + 'CASE REF ' + info.ref;
       fitFont(line2, 13, cw - 20, 600); ctx.fillStyle = '#4a5164'; ctx.fillText(line2, cx, cy + 98);
-      fitFont(line3, 10.5, cw - 20, 500, '"IBM Plex Mono", monospace'); ctx.fillStyle = info.mult > 1 || info.rush ? '#b8741a' : '#8a8f9c';
+      fitFont(line3, 10.5, cw - 20, 500, '"IBM Plex Mono", monospace'); ctx.fillStyle = info.mult > 1 ? '#b8741a' : '#8a8f9c';
       ctx.fillText(line3, cx, cy + 118);
     }
     ctx.save(); ctx.translate(cx, cy); ctx.rotate(-.09); ctx.scale(k * sc, k * sc);
@@ -1590,8 +1595,7 @@
   function showAppraisal() {
     state = 'over'; overAt = performance.now();
     for (const k in keys) keys[k] = false;
-    const tier = mode.pg.filter(v => score >= v).length;  // 0..4
-    const grade = 'PG' + (tier + 1), remark = mode.remarks[tier];
+    const tier = gradeTier(mode, score), grade = 'PG' + (tier + 1), remark = mode.remarks[tier];
     $('apRef').textContent = 'Performance Appraisal · Confidential · Ref TMJ/2026/' + Math.floor(rand(10000, 99999));
     $('apOfficer').textContent = `${mode.name} (${mode.rank})`;
     $('apCases').textContent = cases;
@@ -1603,8 +1607,8 @@
     $('apGrade').textContent = 'Rating: ' + grade;
     $('apRemark').textContent = '“' + remark + '” — ' + mode.boss;
     const prev = loadBest(mode.key), isNew = score > 0 && (!prev || score > prev.score);
-    if (isNew) store.set('tmj-best-' + mode.key, JSON.stringify({ score: Math.round(score), grade, cases }));
-    $('apBest').textContent = isNew ? (prev ? `Beat ${money(prev.score)}` : 'First on record') : prev ? `${money(prev.score)} (${prev.grade})` : '–';
+    if (isNew) store.set('tmj-best-' + mode.key, JSON.stringify({ score: Math.round(score), cases }));
+    $('apBest').textContent = isNew ? (prev ? `Beat ${money(prev.score)}` : 'First on record') : prev ? `${money(prev.score)} (PG${gradeTier(mode, prev.score) + 1})` : '–';
     $('apNewBest').classList.toggle('hidden', !isNew);
     $('over').classList.remove('hidden'); $('hud').classList.add('hidden'); showTouch(false); padEnd();
   }
@@ -1624,11 +1628,16 @@
   function loadBest(key) {
     try { const b = JSON.parse(store.get('tmj-best-' + key)); return b && b.score > 0 ? b : null; } catch (e) { return null; }
   }
+  // The grade is worked out from the score each time, so saved bests follow any change to the PG targets
+  function gradeTier(m, s) { return m.pg.filter(v => s >= v).length; }   // 0..4, for PG1..PG5
+  // Each officer card: the best shift and its PG grade ("No shifts on record" until the first one)
   function showBests() {
     document.querySelectorAll('.mode').forEach(btn => {
-      const b = loadBest(btn.dataset.mode), el = btn.querySelector('.best');
-      el.textContent = b ? `Personal best: ${money(b.score)} · ${b.grade}` : '';
-      el.classList.toggle('hidden', !b);
+      const m = MODES[btn.dataset.mode], b = loadBest(m.key), tier = b ? gradeTier(m, b.score) : -1, rec = btn.querySelector('.record');
+      rec.classList.toggle('empty', !b);
+      rec.innerHTML = `<div class="rec-head"><span class="rec-label">Best shift</span>${tier === 4 ? '<span class="commend">\u2605 Commended</span>' : ''}</div>`
+        + (b ? `<div class="rec-amt">${money(b.score)}<small>${b.cases} ${b.cases === 1 ? 'case' : 'cases'}</small><span class="pgchip${tier === 4 ? ' top' : ''}">PG${tier + 1}</span></div>`
+          : '<div class="rec-none">No shifts on record</div>');
     });
   }
   showBests();
