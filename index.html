@@ -15,8 +15,6 @@
     user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; font-family: Inter, "Segoe UI", system-ui, sans-serif; color: var(--ink); }
   canvas#game { display: block; touch-action: none; }
   button { touch-action: manipulation; }
-  #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 1;
-    background: radial-gradient(ellipse at center, rgba(10,14,22,0) 50%, rgba(10,14,22,.4) 100%); }
   .hidden { display: none !important; }
   .mono { font-family: "IBM Plex Mono", "Courier New", monospace; font-size: 10.5px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
 
@@ -155,7 +153,6 @@
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="vignette"></div>
 
 <div id="hud" class="hidden">
   <div class="panel">
@@ -390,6 +387,10 @@
   const cv = $('game'), ctx = cv.getContext('2d', { alpha: false });
   // Rendering more pixels than this per frame makes the game lag on retina/4K screens
   const PIXEL_BUDGET = 2.4e6;
+  // Older computers: if play runs well below 60 fps, the least noticeable extras are dropped one step at a time
+  // (see watchPerf). 0: everything. 1: no vignette. 2: sparser storey lines and mullions, half the particles.
+  // 3: fewer pixels on high-resolution screens (never below one per CSS pixel).
+  let lite = 0;
   let W = 0, H = 0, DPR = 1, BASEZ = 1;
   // Where the HUD panels and touch controls sit, so what's drawn on the canvas (minimap, arrows, tips)
   // keeps clear of them, notches and safe areas included. Measured only when something changes.
@@ -406,15 +407,44 @@
   function resize() {
     W = innerWidth; H = innerHeight;
     DPR = Math.min(window.devicePixelRatio || 1, 2);
-    if (W * H * DPR * DPR > PIXEL_BUDGET) DPR = Math.max(1, Math.sqrt(PIXEL_BUDGET / (W * H)));
+    const budget = lite >= 3 ? PIXEL_BUDGET * .6 : PIXEL_BUDGET;
+    if (W * H * DPR * DPR > budget) DPR = Math.max(1, Math.sqrt(budget / (W * H)));
     cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
     cv.style.width = W + 'px'; cv.style.height = H + 'px';
     // Capped so big screens aren't zoomed in too far: the city would scroll past fast enough to be uncomfortable
     BASEZ = clamp(Math.min(W, H) / 760, 0.55, 0.88);
-    miniCache = null; layoutDirty = true;
+    miniCache = null; vignette = null; layoutDirty = true;
+    redrawUntil = performance.now() + 250;   // resizing blanks the canvas, so draw it again even on a still screen
   }
-  let miniCache = null;
+  let miniCache = null, vignette = null, redrawUntil = 0;
   addEventListener('resize', resize); resize();
+
+  // The vignette: the screen darkening towards the corners, as CSS radial-gradient(ellipse at center,
+  // rgba(10,14,22,0) 50%, rgba(10,14,22,.4) 100%) would. It's painted on the canvas from a pre-drawn copy, and only
+  // outside the clear ellipse in the middle: a see-through layer over the whole screen is costly on older computers.
+  function buildVignette() {
+    const w = cv.width, h = cv.height, c = makeCanvas(w, h), g = c.getContext('2d');
+    const rx = w / 2 * Math.SQRT2, ry = h / 2 * Math.SQRT2;   // the ellipse reaches the corners
+    g.translate(w / 2, h / 2); g.scale(rx, ry);
+    const grad = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+    grad.addColorStop(.5, 'rgba(10,14,22,0)'); grad.addColorStop(1, 'rgba(10,14,22,.4)');
+    g.fillStyle = grad; g.fillRect(-w / 2 / rx, -h / 2 / ry, w / rx, h / ry);
+    // In each band of rows, the parts left and right of the clear middle (half the size of the outer ellipse)
+    const strips = [], N = 16, a = rx / 2, b = ry / 2;
+    for (let i = 0; i < N; i++) {
+      const y0 = Math.floor(h * i / N), y1 = Math.floor(h * (i + 1) / N), far = Math.max(Math.abs(y0 - h / 2), Math.abs(y1 - h / 2));
+      const hw = far < b ? a * Math.sqrt(1 - (far / b) ** 2) : 0, l = Math.ceil(w / 2 - hw), r = Math.floor(w / 2 + hw);
+      if (r - l < 4) strips.push([0, y0, w, y1 - y0]);
+      else strips.push([0, y0, l, y1 - y0], [r, y0, w - r, y1 - y0]);
+    }
+    vignette = { c, strips };
+  }
+  function drawVignette() {
+    if (lite >= 1) return;
+    if (!vignette) buildVignette();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    for (const [x, y, w, h] of vignette.strips) if (w > 0 && h > 0) ctx.drawImage(vignette.c, x, y, w, h, x, y, w, h);
+  }
 
   function makePattern(base, n, alpha, target = ctx) {
     const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
@@ -598,7 +628,7 @@
   const floater = (x, y, text, color = INK) => floaters.push({ x, y, text, color, t: 1.5 });
   const MAX_PARTICLES = 220;
   function burst(x, y, n, opts) {
-    n = Math.min(n, MAX_PARTICLES - particles.length);
+    n = Math.min(n, (lite >= 2 ? MAX_PARTICLES / 2 : MAX_PARTICLES) - particles.length);
     for (let i = 0; i < n; i++) {
       const a = rand(0, Math.PI * 2), s = rand(opts.spdMin || 40, opts.spd || 160);
       particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(.5, 1) * (opts.life || 1), max: opts.life || 1,
@@ -1174,6 +1204,22 @@
   function wall(x1, y1, x2, y2, ox, oy) {
     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x2 + ox, y2 + oy); ctx.lineTo(x1 + ox, y1 + oy); ctx.closePath(); ctx.fill();
   }
+  // A shophouse row's front, each unit its own colour: the wall from (sx, sy) along (dx, dy), one fill per colour
+  // (see unitGroups). Each unit reaches half a unit into the next, so no seams show between them.
+  function unitWalls(b, dark, sx, sy, dx, dy, ox, oy) {
+    const cols = dark ? b.unitsDark : b.unitsLight, n = cols.length, ux = dx / n, uy = dy / n, ex = dx ? .5 : 0, ey = dy ? .5 : 0;
+    for (const idx of b.unitGroups) {
+      ctx.fillStyle = cols[idx[0]]; ctx.beginPath();
+      for (const i of idx) {
+        const ax = sx + i * ux, ay = sy + i * uy, bx = sx + (i + 1) * ux + ex, by = sy + (i + 1) * uy + ey;
+        ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(bx + ox, by + oy); ctx.lineTo(ax + ox, ay + oy); ctx.closePath();
+      }
+      ctx.fill();
+    }
+  }
+  // Set each frame (world units): storey lines are kept at least lineGap apart on screen, and mullions and fins
+  // are left off walls less than finMin thick. On a wall seen nearly edge-on they would only blur into a smudge.
+  let lineGap = 1, finMin = 1;
   // Within a block, buildings further from the camera go first: nearer ones lean away from the camera, over them.
   // A tower and its podium share a centre, so the lower one goes first.
   let depthX = 0, depthY = 0;
@@ -1187,19 +1233,24 @@
     // Only the two walls facing the camera can be seen (one along x at height fy, one along y at fx); the roof covers the others.
     // Shophouse rows paint each unit's front its own colour.
     const fy = oy > 0 ? y : y + h, fx = ox > 0 ? x : x + w;
-    if (b.units && w >= h) { const u = oy > 0 ? b.unitsDark : b.unitsLight, uw = w / u.length; u.forEach((c, i) => { ctx.fillStyle = c; wall(x + i * uw, fy, x + (i + 1) * uw + .5, fy, ox, oy); }); }
+    if (b.units && w >= h) unitWalls(b, oy > 0, x, fy, w, 0, ox, oy);
     else { ctx.fillStyle = oy > 0 ? b.faceN : b.faceS; wall(x, fy, x + w, fy, ox, oy); }
-    if (b.units && h > w) { const u = ox > 0 ? b.unitsDark : b.unitsLight, uh = h / u.length; u.forEach((c, i) => { ctx.fillStyle = c; wall(fx, y + i * uh, fx, y + (i + 1) * uh + .5, ox, oy); }); }
+    if (b.units && h > w) unitWalls(b, ox > 0, fx, y, 0, h, ox, oy);
     else { ctx.fillStyle = ox > 0 ? b.faceW : b.faceE; wall(fx, y, fx, y + h, ox, oy); }
-    ctx.strokeStyle = b.lineColor; ctx.lineWidth = 1.2; ctx.beginPath();
-    for (let i = 1; i < b.floors; i++) {
-      const f = i / b.floors, dx = ox * f, dy = oy * f;
-      ctx.moveTo(x + dx, fy + dy); ctx.lineTo(x + w + dx, fy + dy); ctx.moveTo(fx + dx, y + dy); ctx.lineTo(fx + dx, y + h + dy);
+    // Storey lines, kept at least lineGap apart: on a wall seen almost edge-on they would only blur together.
+    // The wall along x is |oy| thick on screen, the one along y |ox|.
+    const nA = Math.min(b.floors, Math.floor(Math.abs(oy) / lineGap)), nB = Math.min(b.floors, Math.floor(Math.abs(ox) / lineGap));
+    if (nA > 1 || nB > 1) {
+      ctx.strokeStyle = b.lineColor; ctx.lineWidth = 1.2; ctx.beginPath();
+      for (let i = 1; i < nA; i++) { const f = i / nA; ctx.moveTo(x + ox * f, fy + oy * f); ctx.lineTo(x + w + ox * f, fy + oy * f); }
+      for (let i = 1; i < nB; i++) { const f = i / nB; ctx.moveTo(fx + ox * f, y + oy * f); ctx.lineTo(fx + ox * f, y + h + oy * f); }
+      ctx.stroke();
     }
-    ctx.stroke();
-    if (b.fins) {   // glass offices: mullions up the walls
+    // Glass offices: mullions up the walls, left off a wall too thin on screen to show them
+    const finA = Math.abs(oy) >= finMin, finB = Math.abs(ox) >= finMin;
+    if (b.fins && (finA || finB)) {
       ctx.strokeStyle = b.finColor; ctx.lineWidth = 1; ctx.beginPath();
-      const nx = Math.max(1, Math.round(w / b.fins)), ny = Math.max(1, Math.round(h / b.fins));
+      const nx = finA ? Math.max(1, Math.round(w / b.fins)) : 0, ny = finB ? Math.max(1, Math.round(h / b.fins)) : 0;
       for (let j = 1; j < nx; j++) { const px = x + w * j / nx; ctx.moveTo(px, fy); ctx.lineTo(px + ox, fy + oy); }
       for (let j = 1; j < ny; j++) { const py = y + h * j / ny; ctx.moveTo(fx, py); ctx.lineTo(fx + ox, py + oy); }
       ctx.stroke();
@@ -1231,23 +1282,38 @@
   // o.storeys: light lines across the walls; o.fins: vertical lines this far apart, up to o.finTo of the height.
   function prism(pts, cx0, cy0, h0, h1, ccx, ccy, wall, roofFill, o = {}) {
     const k0 = h0 / 950, k1 = h1 / 950, dx = cx0 - ccx, dy = cy0 - ccy;
-    const ax = dx * k0, ay = dy * k0, bx = dx * k1, by = dy * k1, n = pts.length;
+    const ax = dx * k0, ay = dy * k0, bx = dx * k1, by = dy * k1, n = pts.length, ex = bx - ax, ey = by - ay;
+    // Each wall's colour, lit from the bottom of the screen (worked out once per plan and colour)
+    const lit = pts.lit || (pts.lit = {}), shades = lit[wall] || (lit[wall] = pts.map(([x1, y1], i) => {
+      const [x2, y2] = pts[(i + 1) % n], nx = y2 - y1, ny = x1 - x2;
+      return shade(wall, .84 + .2 * (ny / Math.hypot(nx, ny)));
+    }));
+    const seen = [];   // walls facing the camera, and how thick each looks on screen
     for (let i = 0; i < n; i++) {
       const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % n], nx = y2 - y1, ny = x1 - x2;   // outward normal
-      if (nx * (bx - ax) + ny * (by - ay) >= 0) continue;   // facing away from the camera
-      ctx.fillStyle = shade(wall, .84 + .2 * (ny / Math.hypot(nx, ny)));   // lit from the bottom of the screen
+      if (nx * ex + ny * ey >= 0) continue;   // facing away from the camera
+      ctx.fillStyle = shades[i];
       ctx.beginPath(); ctx.moveTo(x1 + ax, y1 + ay); ctx.lineTo(x2 + ax, y2 + ay); ctx.lineTo(x2 + bx, y2 + by); ctx.lineTo(x1 + bx, y1 + by); ctx.closePath(); ctx.fill();
-      if (o.storeys) {
-        ctx.strokeStyle = o.storeyColor || 'rgba(255,255,255,.22)'; ctx.lineWidth = 1; ctx.beginPath();
-        for (let f = 1; f < o.storeys; f++) { const u = f / o.storeys, px = ax + (bx - ax) * u, py = ay + (by - ay) * u; ctx.moveTo(x1 + px, y1 + py); ctx.lineTo(x2 + px, y2 + py); }
-        ctx.stroke();
+      seen.push(i, Math.abs(nx * ex + ny * ey) / Math.hypot(nx, ny));
+    }
+    // Lines across and up all the walls in one stroke each (the walls facing the camera never overlap)
+    if (o.storeys) {
+      ctx.strokeStyle = o.storeyColor || 'rgba(255,255,255,.22)'; ctx.lineWidth = 1; ctx.beginPath();
+      for (let s = 0; s < seen.length; s += 2) {
+        const [x1, y1] = pts[seen[s]], [x2, y2] = pts[(seen[s] + 1) % n], m = Math.min(o.storeys, Math.floor(seen[s + 1] / lineGap));
+        for (let f = 1; f < m; f++) { const u = f / m, px = ax + ex * u, py = ay + ey * u; ctx.moveTo(x1 + px, y1 + py); ctx.lineTo(x2 + px, y2 + py); }
       }
-      if (o.fins) {
-        const m = Math.max(1, Math.round(Math.hypot(x2 - x1, y2 - y1) / o.fins)), top = o.finTo || 1;
-        ctx.strokeStyle = o.finColor; ctx.lineWidth = o.finW || 1; ctx.beginPath();
-        for (let j = 1; j < m; j++) { const s = j / m, px = x1 + (x2 - x1) * s, py = y1 + (y2 - y1) * s; ctx.moveTo(px + ax, py + ay); ctx.lineTo(px + ax + (bx - ax) * top, py + ay + (by - ay) * top); }
-        ctx.stroke();
+      ctx.stroke();
+    }
+    if (o.fins) {
+      const top = o.finTo || 1;
+      ctx.strokeStyle = o.finColor; ctx.lineWidth = o.finW || 1; ctx.beginPath();
+      for (let s = 0; s < seen.length; s += 2) {
+        if (seen[s + 1] * top < finMin) continue;
+        const [x1, y1] = pts[seen[s]], [x2, y2] = pts[(seen[s] + 1) % n], m = Math.max(1, Math.round(Math.hypot(x2 - x1, y2 - y1) / o.fins));
+        for (let j = 1; j < m; j++) { const q = j / m, px = x1 + (x2 - x1) * q, py = y1 + (y2 - y1) * q; ctx.moveTo(px + ax, py + ay); ctx.lineTo(px + ax + ex * top, py + ay + ey * top); }
       }
+      ctx.stroke();
     }
     if (roofFill) {
       ctx.fillStyle = roofFill; ctx.beginPath();
@@ -1343,10 +1409,16 @@
     const inView = (x, y, w, h, m = 160) => x < x0 + vw + m && x + w > x0 - m && y < y0 + vh + m && y + h > y0 - m;
 
     LS = clamp(0.85 / z, 1, 1.7);
+    lineGap = (lite >= 2 ? 4 : 2.5) / z; finMin = (lite >= 2 ? 3 : 1.5) / z;   // in screen pixels, converted to world units
     ctx.save(); ctx.scale(z, z); ctx.translate(-x0, -y0);
 
-    // Grass beyond the city edge, then the pre-drawn ground (only the visible part)
-    ctx.fillStyle = '#5a804c'; ctx.fillRect(x0 - 50, y0 - 50, vw + 100, vh + 100);
+    // Grass beyond the city edge (only where the view reaches past it, tucked a little under the ground's edge so
+    // no seam shows), then the pre-drawn ground (only the visible part)
+    ctx.fillStyle = '#5a804c';
+    if (x0 < 1) ctx.fillRect(x0 - 50, y0 - 50, 51 - x0, vh + 100);
+    if (x0 + vw > WORLD - 1) ctx.fillRect(WORLD - 1, y0 - 50, x0 + vw - WORLD + 51, vh + 100);
+    if (y0 < 1) ctx.fillRect(x0 - 50, y0 - 50, vw + 100, 51 - y0);
+    if (y0 + vh > WORLD - 1) ctx.fillRect(x0 - 50, WORLD - 1, vw + 100, y0 + vh - WORLD + 51);
     const gx0 = Math.max(0, Math.floor(x0)), gy0 = Math.max(0, Math.floor(y0));
     const gx1 = Math.min(WORLD, Math.ceil(x0 + vw)), gy1 = Math.min(WORLD, Math.ceil(y0 + vh));
     if (gx1 > gx0 && gy1 > gy0) ctx.drawImage(GROUND, gx0, gy0, gx1 - gx0, gy1 - gy0, gx0, gy0, gx1 - gx0, gy1 - gy0);
@@ -1793,6 +1865,9 @@
     shop(bd, g, w, h, R) {
       // Low rows of pastel shopfronts under orange tiled roofs: ridge along the row, party walls between units
       bd.unitsDark = bd.units.map(c => shade(c, .86)); bd.unitsLight = bd.units.map(c => shade(c, 1));
+      // The units of each colour, so their fronts can be filled together (see unitWalls)
+      const byColour = new Map(); bd.units.forEach((c, i) => byColour.has(c) ? byColour.get(c).push(i) : byColour.set(c, [i]));
+      bd.unitGroups = [...byColour.values()];
       faces(bd, bd.units[0], .8, .95, .86, 1);
       bd.floors = 2; bd.lineColor = 'rgba(80,50,35,.18)';
       const along = w >= h, L = along ? w : h, D = along ? h : w, n = bd.units.length, uw = L / n;
@@ -2068,9 +2143,25 @@
   const CAM_FOLLOW = 0.12;   // seconds the camera takes to catch up with the car (on a phone)
   const CAM_FOLLOW_BIG = 0.06;   // ...and on a bigger screen, where any lag is a bigger move on screen
   const CAM_LOOK = 0.2;      // how far ahead of the car the camera looks, in seconds of travel (on a phone)
-  let last = performance.now();
+  let last = performance.now(), lastDraw = 0;
   let dtSmooth = 1 / 60;
+  // Watches frame times during play (from a second in, past any hitch at the start) and, if two seconds average
+  // under 45 fps, drops one level of extras (see lite); the last level, fewer pixels, only below 30 fps. It never
+  // steps back up, so the look doesn't flicker. A steady 30 fps is left alone: that's a battery saver or low power
+  // mode capping the frame rate on a machine that's coping fine, not a struggling one.
+  const perf = { sum: 0, n: 0, at30: 0, from: 0 };
+  function watchPerf(now, gap) {
+    if (state !== 'play' || lite >= 3) { perf.sum = perf.n = perf.at30 = 0; perf.from = now + 1000; return; }
+    if (now < perf.from) return;
+    perf.sum += Math.min(gap, 100); perf.n++;
+    if (gap > 31 && gap < 36) perf.at30++;
+    if (perf.sum < 2000) return;
+    const capped = perf.at30 > perf.n * .9, avg = perf.sum / perf.n;
+    if (!capped && avg > 1000 / (lite >= 2 ? 30 : 45)) { lite++; if (lite === 3) resize(); }
+    perf.sum = perf.n = perf.at30 = 0;
+  }
   function frame(now) {
+    watchPerf(now, now - last);
     // Smooth out uneven frame times so movement doesn't jitter
     const raw = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
     dtSmooth += (raw - dtSmooth) * 0.25;
@@ -2101,7 +2192,10 @@
     else { smoothDamp(cam, 'x', tx, follow, dt); smoothDamp(cam, 'y', ty, follow, dt); }
     cam.z += (tz - cam.z) * (1 - Math.exp(-2.5 * dt));
 
-    draw(dt);
+    // Menus: behind the title card the city only drifts slowly, so it's redrawn at 30 fps (the car on the card stays
+    // at full rate). Behind the appraisal it stands still, so once the last effects have settled it isn't redrawn.
+    const still = state === 'over' && now - overAt > 1000 && now > redrawUntil;
+    if (!still && !(state === 'title' && now - lastDraw < 29 && now > redrawUntil)) { draw(dt); drawVignette(); lastDraw = now; }
     if (state !== 'title') updateHUD(dt); else drawHero();
     requestAnimationFrame(frame);
   }
