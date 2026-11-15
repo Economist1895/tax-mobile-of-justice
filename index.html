@@ -391,7 +391,7 @@
   // Rendering more pixels than this per frame makes the game lag on retina/4K screens
   const PIXEL_BUDGET = 2.4e6;
   let W = 0, H = 0, DPR = 1, BASEZ = 1;
-  // Where the HUD panels and touch controls sit, so what's drawn on the canvas (minimap, toasts, arrows, tips)
+  // Where the HUD panels and touch controls sit, so what's drawn on the canvas (minimap, arrows, tips)
   // keeps clear of them, notches and safe areas included. Measured only when something changes.
   const layout = { hudBottom: 0, leftEdge: 0, rightEdge: 0, rightRight: 0, rightBottom: 0, touchTop: 0, padRight: 0, padBottom: 0, btnLeft: 0 };
   let layoutDirty = true;
@@ -457,6 +457,9 @@
   (function buildCity() {
     const R = mulberry32(20261113), S = (BLOCK - 1) * T, pad = 26, inner = S - 2 * pad;
     const rp = arr => arr[Math.floor(R() * arr.length)];
+    // Only parks have trees. Where other trees used to be placed, skip() draws the same random numbers
+    // so the rest of the layout is unchanged.
+    const skip = n => { for (let k = 0; k < n; k++) R(); };
     // Four parks, spread out: never side by side, and at most one next to Revenue House
     const touch = (a, c) => Math.abs(a[0] - c[0]) <= 1 && Math.abs(a[1] - c[1]) <= 1, rh = [RH.bi, RH.bj], parks = [];
     for (let k = 0; k < 500 && parks.length < 4; k++) {
@@ -467,7 +470,6 @@
     for (let bi = 0; bi < NODES - 1; bi++) for (let bj = 0; bj < NODES - 1; bj++) {
       const x = (bi * BLOCK + 1) * T, y = (bj * BLOCK + 1) * T, xa = x + pad, ya = y + pad;
       const b = { x, y, S, park: parks.some(p => p[0] === bi && p[1] === bj), buildings: [], trees: [] };
-      const tree = (u, v, r) => b.trees.push({ x: xa + u, y: ya + v, r, H: 18 });
       if (b.park) {
         for (let k = 0; k < 11; k++) { const r = 16 + R() * 15; b.trees.push({ x: x + pad + r + R() * (S - 2 * pad - 2 * r), y: y + pad + r + R() * (S - 2 * pad - 2 * r), r, H: 26 + R() * 14 }); }
       } else {
@@ -483,12 +485,12 @@
             for (let n = 0; n < 3; n++) {
               const off = n % 2 ? inner - L : 0, at = n * (D + gap), o = { H: 85 + R() * 30, accent, num: num() };
               if (across) add('hdb', off, at, L, D, o); else add('hdb', at, off, D, L, o);
-              if (n < 2) for (let k = 0; k < 2; k++) { const f = 20 + R() * (inner - 40), g = at + D + gap / 2; across ? tree(f, g, 10 + R() * 4) : tree(g, f, 10 + R() * 4); }
+              if (n < 2) skip(4);
             }
           } else {
             const q = 84;
             for (const [u, v] of [[0, 0], [inner - q, 0], [0, inner - q], [inner - q, inner - q]]) add('hdb', u, v, q, q, { H: 105 + R() * 18, accent, num: num() });
-            for (let k = 0; k < 3; k++) tree(inner / 2 + (R() - .5) * 60, inner / 2 + (R() - .5) * 60, 11 + R() * 5);
+            skip(9);
           }
         } else if (style === 'shop') {
           // Shophouse rows facing the four streets, round a back lane
@@ -498,7 +500,7 @@
             for (let i = 0; i < n; i++) { let c; do c = rp(PASTEL); while (c === units[i - 1]); units.push(c); }
             add('shop', u, v, w, hh, { H: 24 + R() * 8, units, street });
           }
-          for (let k = 0; k < 3; k++) tree(D + gap + 16 + R() * (side - 32), D + gap + 16 + R() * (side - 32), 9 + R() * 4);
+          skip(9);
         } else {
           const glass = rp(GLASS), o = R();
           if (o < .3) {   // one tower on a podium with a roof garden
@@ -509,43 +511,28 @@
             for (const [u, v] of lo) add('podium', u, v, q, q, { H: 30 });
             add('office', hi[0][0], hi[0][1], q, q, { H: 100 + R() * 20, glass });
             add('office', hi[1][0], hi[1][1], q, q, { H: 120 + R() * 25, glass, helipad: R() < .5 });
-          } else {   // two glass slabs with trees between
+          } else {   // two glass slabs
             const D = 100, across = R() < .5, H1 = 70 + R() * 30, H2 = 70 + R() * 30;
             if (across) { add('office', 0, 0, inner, D, { H: H1, glass }); add('office', 0, inner - D, inner, D, { H: H2, glass }); }
             else { add('office', 0, 0, D, inner, { H: H1, glass }); add('office', inner - D, 0, D, inner, { H: H2, glass }); }
-            for (let k = 0; k < 4; k++) { const f = 20 + k * (inner - 40) / 3; across ? tree(f, inner / 2, 11) : tree(inner / 2, f, 11); }
           }
         }
-        for (let k = 0; k < 6; k++) {
-          const side = Math.floor(R() * 4), f = 0.1 + R() * 0.8, i = 13;
-          const p = side === 0 ? [x + f * S, y + i] : side === 1 ? [x + f * S, y + S - i] : side === 2 ? [x + i, y + f * S] : [x + S - i, y + f * S];
-          b.trees.push({ x: p[0], y: p[1], r: 10 + R() * 3, H: 18 });
-        }
+        skip(18);   // six street trees
       }
       blocks.push(b);
     }
     // Revenue House gets the whole block (see buildRevenueHouse)
     const rb = blocks[RH.bi * (NODES - 1) + RH.bj];
-    rb.park = false; rb.trees = []; rb.buildings = [];
+    rb.buildings = [];
     rb.rh = buildRevenueHouse(rb.x, rb.y, S, pad);
-    for (const f of [0.12, 0.88]) for (const [u, v] of [[f, 0], [f, 1], [0, f], [1, f]]) rb.trees.push({ x: rb.x + 13 + u * (S - 26), y: rb.y + 13 + v * (S - 26), r: 11, H: 18 });
     // The start junction (Revenue House's south-east corner) has a building of note on each of its other corners,
     // all fronting the roads through it (see BUILDING_STYLE.chambers, .pasta, .keys and .sushi). They rely on this
     // seed's layout: glass slabs north-east of the junction and shophouse rows south-west and south-east of it.
     const at = (bi, bj) => blocks[bi * (NODES - 1) + bj];
-    // Keep a building's front clear: no street trees on the pavement in front of it
-    const clearFront = (b, bd) => {
-      const horiz = bd.street === 'n' || bd.street === 's';
-      const edge = { n: b.y, s: b.y + S, w: b.x, e: b.x + S }[bd.street], [a, len] = horiz ? [bd.x, bd.w] : [bd.y, bd.h];
-      b.trees = b.trees.filter(t => Math.abs((horiz ? t.y : t.x) - edge) > pad || (horiz ? t.x : t.y) < a - 14 || (horiz ? t.x : t.y) > a + len + 14);
-    };
     // A building of note in place of an ordinary one
     function takeOver(b, old, kind, o) {
       const bd = { kind, x: old.x, y: old.y, w: old.w, h: old.h, base: 0, seed: old.seed, street: old.street, ...o };
       b.buildings[b.buildings.indexOf(old)] = bd;
-      clearFront(b, bd);
-      // It may be bigger than what it replaced: clear any trees it now stands on
-      b.trees = b.trees.filter(t => t.x + t.r < bd.x - 4 || t.x - t.r > bd.x + bd.w + 4 || t.y + t.r < bd.y - 4 || t.y - t.r > bd.y + bd.h + 4);
     }
     // A shop taking over one end of a shophouse row along a street
     function shopEnd(b, street, end, kind, len, o) {
@@ -554,7 +541,6 @@
       b.buildings.push(bd);
       if (end === 'w') row.x += len;
       row.w = rest; row.units = row.units.slice(0, Math.round(rest / 17));
-      clearFront(b, bd);
     }
     // North-east: Sylvester & Partners in place of the glass slab facing the junction
     const ne = at(RH.bi + 1, RH.bj), sw = at(RH.bi, RH.bj + 1), se = at(RH.bi + 1, RH.bj + 1);
@@ -565,7 +551,7 @@
     takeOver(se, se.buildings.find(o => o.kind === 'shop' && o.street === 'w'), 'sushi', { w: 96, H: 30 });
   })();
   // ================= State =================
-  let state = 'title', ammo = 0, stacks = [], P, suspects, items, rices, notices, particles, skids, floaters, toasts, stamp, bust;
+  let state = 'title', ammo = 0, stacks = [], P, suspects, items, rices, notices, particles, skids, floaters, stamp, bust;
   let score, shownScore, cases, timeLeft, nextSpawn, lastType, noticeCD, endT, stats, streak, lastCatchAt, overAt = 0, t = 0;
   let tutorial = false;
   let skipScenes = store.get('tmj-skip') === '1';   // "Skip catch scenes" on the title page
@@ -597,7 +583,7 @@
 
   function reset() {
     P = { x: nodeX(3), y: nodeX(3), a: -Math.PI / 2, spd: 0, r: 15, boost: 0, px: 0, py: 0, rear: null, queue: null, lock: null };
-    suspects = []; items = []; rices = []; notices = []; particles = []; skids = []; floaters = []; toasts = [];
+    suspects = []; items = []; rices = []; notices = []; particles = []; skids = []; floaters = [];
     stamp = null; bust = null; score = 0; shownScore = 0; cases = 0; timeLeft = ROUND_TIME; nextSpawn = 0.8;
     lastType = null; noticeCD = 0; streak = 0; lastCatchAt = -99;
     planWorks();
@@ -608,8 +594,6 @@
   }
 
   const progress = () => 1 - timeLeft / ROUND_TIME;  // 0 at start of shift, 1 at the end
-  // Messages at the top of the screen; phones keep fewer at once so the road stays visible
-  const toast = (text, color = INK) => { toasts.push({ text, color, t: 2.6 }); while (toasts.length > (W < 560 ? 2 : 3)) toasts.shift(); };
   const floater = (x, y, text, color = INK) => floaters.push({ x, y, text, color, t: 1.5 });
   const MAX_PARTICLES = 220;
   function burst(x, y, n, opts) {
@@ -670,7 +654,6 @@
       for (let i = 0; i < NODES; i++) for (let j = 0; j < NODES; j++) { const d = Math.hypot(nodeX(i) - P.x, nodeX(j) - P.y); if (d > 700 && d < 900) near.push({ i, j }); }
       const n = near.length ? pick(near) : pickSpawnNode(), s = spawnSuspect('contractor', n.i, n.j);
       s.tutor = true; s.caseT = 45; lastType = 'contractor';
-      toast('Training case: ' + s.ty.name, RED);
       return;
     }
     let options = Object.keys(TYPES).filter(k => k !== lastType && !suspects.some(s => s.key === k));
@@ -678,7 +661,6 @@
     const k = pick(options); lastType = k;
     const n = pickSpawnNode();
     spawnSuspect(k, n.i, n.j);
-    toast('New case: ' + TYPES[k].name, RED);
   }
   // A few cases at once (more in the second half, see mode.caseLoad). New cases are
   // queued during catch scenes so there is no dead time afterwards.
@@ -693,7 +675,6 @@
     if (s.tutor) tutorial = false;
     burst(s.x, s.y, 18, { colors: ['rgba(255,255,255,.7)', 'rgba(200,200,200,.6)'], spd: 120, life: .8, size: 10 });
     floater(s.x, s.y - 30, 'See you never! \uD83D\uDC4B', RED);
-    toast('Case time-barred: ' + s.ty.name + ' got away', RED);
     if (!suspects.length) nextSpawn = Math.min(nextSpawn, 0.8);
   }
   const say = (s, text, dur = 1.8) => { s.say = { text, t: dur }; };
@@ -764,7 +745,6 @@
     if (!bust.stamped && bust.t >= 2.0) {
       const s = bust.s, { val, mult } = scoreCatch(s);
       bust.stamped = true;
-      if (mult > 1) toast(`Efficiency bonus ×${mult} (${streak} in a row)`, '#b8741a');
       stamp = { t: 0, dur: 1.8, name: s.ty.name + (s.gen ? ' (Subsidiary)' : ''), val, ref: s.ref, offence: s.ty.offence, mult };
       burst(s.x, s.y, 46, { kind: 'paper', colors: ['#ffffff', '#f7f1e3', '#dff0d8', '#fde9a8'], spd: 380, spdMin: 120, life: 1.6, size: 9 });
     }
@@ -777,7 +757,6 @@
     suspects.splice(suspects.indexOf(s), 1);
     if (s.key === 'shell' && !s.gen) {
       for (let i = 0; i < 2; i++) { const n = pickSpawnNode(); spawnSuspect('shell', n.i, n.j, 1); }
-      toast('Shells all the way down! 2 subsidiaries appeared', RED);
     }
     if (!suspects.length) nextSpawn = Math.min(nextSpawn, 0.6);
   }
@@ -929,7 +908,7 @@
     if (!control) return;
 
     for (const k of rices) if (Math.hypot(k.x - P.x, k.y - P.y) < 34) {
-      P.boost = 3.5; P.spd += 90; toast('Chicken rice acquired. Morale restored, speed +40%', '#b8741a');
+      P.boost = 3.5; P.spd += 90;
       burst(k.x, k.y, 12, { colors: ['#fff', '#f4d27a'], spd: 140, life: .6, size: 5 });
       Object.assign(k, randomRoadPoint());
     }
@@ -961,7 +940,7 @@
   }
   function throwNotice() {
     if (noticeCD > 0) return;
-    if (ammo <= 0) { noticeCD = 0.8; toast('Out of Notices! Drive over Notices on the road to pick up more.', RED); return; }
+    if (ammo <= 0) { noticeCD = 0.8; floater(P.x, P.y - 40, 'Out of Notices!', RED); return; }
     ammo--; noticeCD = NOTICE_COOLDOWN; stats.thrown++;
     const target = noticeTarget(), sp = 720 + Math.max(0, P.spd);
     notices.push({ x: P.x + Math.cos(P.a) * 26, y: P.y + Math.sin(P.a) * 26, vx: Math.cos(P.a) * sp, vy: Math.sin(P.a) * sp, target, life: NOTICE_LIFE, rot: 0 });
@@ -1015,7 +994,6 @@
   // ================= Update =================
   function updateFX(dt) {
     if (stamp && (stamp.t += dt) > stamp.dur) stamp = null;
-    for (const x of toasts) x.t -= dt; prune(toasts, x => x.t > 0);
     for (const f of floaters) { f.t -= dt; f.y -= 28 * dt; } prune(floaters, f => f.t > 0);
     const kPaper = Math.pow(0.15, dt), kPuff = Math.pow(0.3, dt);
     for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; const k = p.kind === 'paper' ? kPaper : kPuff; p.vx *= k; p.vy *= k; p.rot += p.vr * dt; p.life -= dt; }
@@ -1553,21 +1531,6 @@
       }
     }
 
-    // Toasts: between the HUD panels if they fit there, otherwise just below the HUD
-    const toastSize = W < 480 ? 12.5 : 15;
-    let widest = 0;
-    for (const x of toasts) widest = Math.max(widest, fitFont(x.text, toastSize, W - 46) + 30);
-    const toastTop = W / 2 - widest / 2 > layout.leftEdge + 8 && W / 2 + widest / 2 < layout.rightEdge - 8 ? 40 : layout.hudBottom + 26;
-    toasts.forEach((x, i) => {
-      ctx.globalAlpha = clamp(x.t * 2, 0, 1);
-      const w = fitFont(x.text, toastSize, W - 46) + 30, y = toastTop + barH + i * 40;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'rgba(0,0,0,.25)'; rr(ctx, W / 2 - w / 2 + 1, y - 16 + 3, w, 32, 16); ctx.fill();
-      ctx.fillStyle = PAPER; rr(ctx, W / 2 - w / 2, y - 16, w, 32, 16); ctx.fill();
-      ctx.fillStyle = x.color; ctx.fillText(x.text, W / 2, y + 1);
-      ctx.globalAlpha = 1;
-    });
-
     // SENT TO REVENUE HOUSE stamp
     if (stamp) drawStamp(stamp.t, stamp.dur, 'SENT TO', 'REVENUE HOUSE', stamp);
     if (state === 'ending') drawStamp(1.8 - endT, 99, 'CASES ARE NOW', 'TIME-BARRED', null);
@@ -1642,8 +1605,6 @@
     cam.xV = cam.yV = cam.lxV = cam.lyV = 0;
     $('title').classList.add('hidden'); $('over').classList.add('hidden'); $('hud').classList.remove('hidden'); showTouch(true);
     $('hudDriver').textContent = mode.name; $('hudDriver').parentElement.style.color = mode.color;
-    toast(`${mode.name} (${mode.rank}) and GST 009 are on the road!`, mode.color);
-    toast(`Tunnelling works near Revenue House: ${closures.length} roads closed until 2035`, '#b8741a');
   }
   function showAppraisal() {
     state = 'over'; overAt = performance.now();
