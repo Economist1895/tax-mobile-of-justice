@@ -99,14 +99,25 @@
   .pgchip.top { background: #c99400; }
   .rec-none { font-size: 13px; font-style: italic; color: #9a9fab; margin: 4px 0 2px; }
 
-  .skipopt { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13.5px; color: #3b4356; cursor: pointer; }
+  /* "Skip catch scenes": a full-width option card like the officer cards, with a big switch and its state spelled out */
+  .skipopt { position: relative; display: flex; align-items: center; gap: 14px; margin-top: 14px; padding: 12px 16px; background: #fff;
+    border: 2px solid #e2d8c2; border-radius: 14px; cursor: pointer; transition: border-color .12s, background .12s, box-shadow .12s; }
+  .skipopt:hover { border-color: #c9bda3; }
+  .skipopt:has(input:checked) { border-color: var(--ink); background: #f3f6fb; box-shadow: 0 0 0 3px rgba(27,35,51,.12); }
   .skipopt input { position: absolute; opacity: 0; pointer-events: none; }
-  .skipopt .sw { flex: none; position: relative; width: 36px; height: 20px; border-radius: 99px; background: #d8ccb2; transition: background .15s; }
-  .skipopt .sw::after { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff;
-    box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+  .skipopt .sw { flex: none; position: relative; width: 52px; height: 30px; border-radius: 99px; background: #d8ccb2; transition: background .15s; }
+  .skipopt .sw::after { content: ""; position: absolute; left: 3px; top: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .15s; }
   .skipopt input:checked + .sw { background: var(--ink); }
-  .skipopt input:checked + .sw::after { transform: translateX(16px); }
-  .skipopt input:focus-visible + .sw { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .skipopt input:checked + .sw::after { transform: translateX(22px); }
+  .skipopt input:focus-visible + .sw { outline: 2px solid var(--blue); outline-offset: 3px; }
+  .skipopt .txt { flex: 1; min-width: 0; }
+  .skipopt .ttl { display: block; font-family: Fraunces, Georgia, serif; font-weight: 800; font-size: 18px; line-height: 1.2; }
+  .skipopt .sub { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+  .skipopt .state { flex: none; font: 800 11px Inter, sans-serif; letter-spacing: .08em; padding: 4px 10px; border-radius: 99px; background: #eee6d4; color: #7a6f58; }
+  .skipopt .state::before { content: "OFF"; }
+  .skipopt input:checked ~ .state { background: var(--ink); color: #fff; }
+  .skipopt input:checked ~ .state::before { content: "ON"; }
   .steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
   .steps li { display: grid; grid-template-columns: 30px 1fr; gap: 8px; align-items: start; font-size: 14px; line-height: 1.45; }
   .steps .ic { width: 30px; height: 30px; border-radius: 9px; background: #efe6d2; display: flex; align-items: center; justify-content: center; font-size: 15px; }
@@ -182,7 +193,7 @@
       <div class="touch-only">🕹️ Pad to steer</div>
       <div class="touch-only">✉️ Button to throw a Notice</div>
     </div>
-    <label class="skipopt"><input type="checkbox" id="skipScenes"><span class="sw"></span><span><b>Skip catch scenes</b> · keep driving after each catch</span></label>
+    <label class="skipopt"><input type="checkbox" id="skipScenes"><span class="sw"></span><span class="txt"><span class="ttl">Skip catch scenes</span><span class="sub">Keep driving after each catch</span></span><span class="state" aria-hidden="true"></span></label>
     <div class="section">1 · Choose your officer</div>
     <div class="modes">
       <button class="mode sel" data-mode="ryan">
@@ -557,7 +568,7 @@
     rb.buildings = [];
     rb.rh = buildRevenueHouse(rb.x, rb.y, S, pad);
     // The start junction (Revenue House's south-east corner) has a building of note on each of its other corners,
-    // all fronting the roads through it (see BUILDING_STYLE.chambers, .pasta, .keys and .sushi). They rely on this
+    // all fronting the roads through it (see BUILDING_STYLE.chambers, .pasta and .keys), and more round it. They rely on this
     // seed's layout: glass slabs north-east of the junction and shophouse rows south-west and south-east of it.
     const at = (bi, bj) => blocks[bi * (NODES - 1) + bj];
     // A building of note in place of an ordinary one
@@ -565,21 +576,24 @@
       const bd = { kind, x: old.x, y: old.y, w: old.w, h: old.h, base: 0, seed: old.seed, street: old.street, ...o };
       b.buildings[b.buildings.indexOf(old)] = bd;
     }
-    // A shop taking over one end of a shophouse row along a street
-    function shopEnd(b, street, end, kind, len, o) {
-      const row = b.buildings.find(r => r.kind === 'shop' && r.street === street), rest = row.w - len;
-      const bd = { kind, x: end === 'w' ? row.x : row.x + rest, y: row.y, w: len, h: row.h, base: 0, seed: row.seed + 1, street, ...o };
-      b.buildings.push(bd);
-      if (end === 'w') row.x += len;
-      row.w = rest; row.units = row.units.slice(0, Math.round(rest / 17));
-    }
+    // The shophouse row along a block's street
+    const row = (b, street) => b.buildings.find(o => o.kind === 'shop' && o.street === street);
+    // A side row widened into the courtyard to 96: from its street edge, so the frontage stays put
+    const wide = r => r.street === 'e' ? { x: r.x + r.w - 96, w: 96 } : { w: 96 };
     // North-east: Sylvester & Partners in place of the glass slab facing the junction
     const ne = at(RH.bi + 1, RH.bj), sw = at(RH.bi, RH.bj + 1), se = at(RH.bi + 1, RH.bj + 1);
     takeOver(ne, ne.buildings.reduce((a, o) => o.y > a.y ? o : a), 'chambers', { street: 's', H: 42 });
-    shopEnd(sw, 'n', 'e', 'keys', 184, { H: 26 });                                       // south-west: Shane's
-    shopEnd(se, 'n', 'w', 'pasta', 176, { H: 30 });                                      // south-east: Bethany's, on the corner
-    // ...and Shaun's round the corner from it, in place of the row along the road south, reaching into the courtyard
-    takeOver(se, se.buildings.find(o => o.kind === 'shop' && o.street === 'w'), 'sushi', { w: 96, H: 30 });
+    takeOver(sw, row(sw, 'n'), 'keys', { H: 26 });    // south-west: Shane's, the whole row across from Revenue House
+    takeOver(se, row(se, 'n'), 'pasta', { H: 30 });   // south-east: Bethany's, the whole row on the corner
+    // ...and on the side rows of those two blocks (see BUILDING_STYLE.sushi, .pizza, .matcha and .soup): Shaun's and
+    // Pizza 3Ps facing each other across the road south, Ray's and Joe's Soup Kitchen behind them across the courtyards
+    let r;
+    r = row(se, 'w'); takeOver(se, r, 'sushi', { ...wide(r), H: 30 });
+    r = row(sw, 'e'); takeOver(sw, r, 'pizza', { ...wide(r), H: 30 });
+    r = row(sw, 'w'); takeOver(sw, r, 'matcha', { ...wide(r), H: 24 });
+    r = row(se, 'e'); takeOver(se, r, 'soup', { ...wide(r), H: 26 });
+    // Jerald's Gym in place of the glass slab behind Sylvester & Partners, its glass front facing Revenue House
+    takeOver(ne, ne.buildings.find(o => o.kind === 'office'), 'gym', { street: 'w', H: 40 });
   })();
   // ================= State =================
   let state = 'title', ammo = 0, stacks = [], P, suspects, items, rices, notices, particles, skids, floaters, stamp, bust;
@@ -1256,7 +1270,8 @@
       ctx.stroke();
     }
     // Bands across the shopfront, only when the street side faces the camera: Bethany's awning and windows,
-    // Shane's display window and underglow, Shaun's noren and the chambers' colonnade. Each band is striped in
+    // Shane's display window and underglow, Shaun's noren, the chambers' colonnade, Ray's counter and awning,
+    // Joe's serving hatch, Pizza 3Ps' oven-lit window and the gym's glass front. Each band is striped in
     // its colours, one fill per colour.
     const st = b.street;
     if (b.bands && (st === 'n' ? oy > 0 : st === 's' ? oy <= 0 : st === 'w' ? ox > 0 : ox <= 0)) {
@@ -1952,8 +1967,8 @@
       g.fillStyle = 'rgba(0,0,0,.2)'; rr(g, w / 2 - bw / 2 + 1.5, mid - bh / 2 + 2, bw, bh, 5); g.fill();
       g.fillStyle = '#1f4a33'; rr(g, w / 2 - bw / 2, mid - bh / 2, bw, bh, 5); g.fill();
       g.strokeStyle = '#e8c56a'; g.lineWidth = 1.2; rr(g, w / 2 - bw / 2 + 3, mid - bh / 2 + 3, bw - 6, bh - 6, 3); g.stroke();
-      g.fillStyle = '#fbf3e4'; fitText(g, 'Bethany\u2019s', w / 2, mid - 4, bw - 12, 800, 21, DISPLAY);
-      g.fillStyle = '#e8c56a'; fitText(g, 'P A S T A', w / 2, mid + 11.5, bw - 30, 800, 8.5, UI);
+      g.fillStyle = '#fbf3e4'; fitText(g, 'Bethany\u2019s', w / 2, mid - 4.5, bw - 12, 800, 23, DISPLAY);
+      g.fillStyle = '#e8c56a'; fitText(g, 'P A S T A', w / 2, mid + 12, bw - 30, 800, 11, UI);
     },
     keys(bd, g, w, h) {
       // Shane's Keyboard Store: the roof is a giant keyboard, its home row spelling the name and the spacebar
@@ -1981,7 +1996,7 @@
       for (let gI = 0; gI < 3; gI++) { for (let k = 0; k < 4; k++) fn.push({ u: 1, c: GREY }); if (gI < 2) fn.push({ u: .5 }); }
       row(4, 9, fn);
       row(15, 19, [{ u: 2, c: GREY }, ...[...'SHANE’S'].map(ch => ({ u: 1, c: CREAM, label: ch, size: 11 })), { u: 2, c: '#3f8ee8' }]);
-      row(36, 14, [{ u: 1.25, c: GREY }, { u: 1.25, c: GREY }, { u: 1.25, c: GREY }, { u: 6.25, c: '#f2b705', label: 'KEYBOARDS', size: 8 }, { u: 1.25, c: GREY }, { u: 1.25, c: GREY }, { u: 1.25, c: GREY }, { u: 1.25, c: GREY }]);
+      row(36, 14, [{ u: 1.25, c: GREY }, { u: 1.25, c: GREY }, { u: 1.25, c: GREY }, { u: 6.25, c: '#f2b705', label: 'KEYBOARDS', size: 10 }, { u: 1.25, c: GREY }, { u: 1.25, c: GREY }, { u: 1.25, c: GREY }, { u: 1.25, c: GREY }]);
     },
     chambers(bd, g, w, h) {
       // Sylvester & Partners: a conserved colonial building of the kind small firms take on. White walls with a
@@ -2039,8 +2054,8 @@
       g.fillStyle = 'rgba(0,0,0,.2)'; rr(g, cx - bw / 2 + 1.5, by + 2, bw, bh, 5); g.fill();
       g.fillStyle = '#26356c'; rr(g, cx - bw / 2, by, bw, bh, 5); g.fill();
       g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1.2; rr(g, cx - bw / 2 + 3, by + 3, bw - 6, bh - 6, 3); g.stroke();
-      g.fillStyle = '#fbf8f2'; fitText(g, 'Shaun\u2019s', cx, by + 15, bw - 12, 800, 21, DISPLAY);
-      g.fillStyle = '#ef8a5c'; fitText(g, 'S U S H I', cx, by + 30, bw - 26, 800, 8.5, UI);
+      g.fillStyle = '#fbf8f2'; fitText(g, 'Shaun\u2019s', cx, by + 14, bw - 10, 800, 23, DISPLAY);
+      g.fillStyle = '#ef8a5c'; fitText(g, 'S U S H I', cx, by + 30, bw - 14, 800, 11, UI);
       // The serving board, with its shadow, and the two pieces on it
       const gw = rw - 16, gh = 36, gy = by + bh + Math.max(6, (ry + rh - by - bh - gh) / 2), gx = cx - gw / 2;
       g.fillStyle = 'rgba(40,25,10,.25)'; rr(g, gx + 2, gy + 3, gw, gh, 4); g.fill();
@@ -2065,7 +2080,172 @@
       g.fillStyle = '#f4895f'; g.beginPath(); g.arc(kx - 1.6, my - .8, 3, 0, 7); g.fill();
       g.fillStyle = '#7cc46a'; g.beginPath(); g.arc(kx + 2.2, my + 1.6, 2.2, 0, 7); g.fill();
     },
+    matcha(bd, g, w, h) {
+      // Ray's Matcha: a white tea house with a timber counter, a lit window and a matcha-green awning. On the
+      // roof, the name on a cream board, then a bowl of whisked matcha seen from above with its bamboo whisk.
+      faces(bd, '#f1eee4', .8, .95, .86, 1);
+      bd.floors = 2; bd.lineColor = 'rgba(80,90,60,.12)';
+      bd.bands = [{ f0: .06, f1: .36, colors: ['#c9a774', '#b8935f'], sw: 10 }, { f0: .42, f1: .68, colors: ['#eef3e2', '#dce7c9'], sw: 16 }, { f0: .74, f1: .9, colors: ['#5f8f3e', '#f4f1e6'], sw: 6 }];
+      const { rx, ry, rw, rh, cx } = shopRoof(g, bd, w, h, 6, ['#5f8f3e', '#f4f1e6'], '#e6e2d8', '#c9c3b5');
+      // The name board
+      const bw = rw - 8, bh = 46, by = ry + 8;
+      g.fillStyle = 'rgba(0,0,0,.18)'; rr(g, cx - bw / 2 + 1.5, by + 2, bw, bh, 5); g.fill();
+      g.fillStyle = '#f7f4ea'; rr(g, cx - bw / 2, by, bw, bh, 5); g.fill();
+      g.strokeStyle = '#5f8f3e'; g.lineWidth = 1.2; rr(g, cx - bw / 2 + 3, by + 3, bw - 6, bh - 6, 3); g.stroke();
+      g.fillStyle = '#2f4a22'; fitText(g, 'Ray’s', cx, by + 18, bw - 10, 800, 26, DISPLAY);
+      g.fillStyle = '#5f8f3e'; fitText(g, 'M A T C H A', cx, by + 35, bw - 12, 800, 11, UI);
+      // The bowl: its shadow, a dark glazed rim, then the foam with the whisk's swirl in it
+      const r = Math.min(22, (ry + rh - by - bh - 12) / 2), bx = cx - 9, cy = by + bh + 6 + r;
+      g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.arc(bx + 2, cy + 2.5, r, 0, 7); g.fill();
+      g.fillStyle = '#3d3a35'; g.beginPath(); g.arc(bx, cy, r, 0, 7); g.fill();
+      g.fillStyle = '#6b665d'; g.beginPath(); g.arc(bx, cy, r - 2, 0, 7); g.fill();
+      g.fillStyle = '#8fbf4f'; g.beginPath(); g.arc(bx, cy, r - 4, 0, 7); g.fill();
+      g.strokeStyle = '#c7e08f'; g.lineWidth = 1.3; g.beginPath();
+      for (let k = 0; k < 4; k++) { const q = r - 7 - k * 3.2; if (q > 1) { g.moveTo(bx + q, cy); g.arc(bx, cy, q, 0, Math.PI * 1.4); } }
+      g.stroke();
+      // The whisk resting beside it: a ring of bamboo tines round its handle
+      const wx = bx + r + 12, wy = cy + r * .35;
+      g.fillStyle = 'rgba(0,0,0,.18)'; g.beginPath(); g.arc(wx + 1.5, wy + 2, 7, 0, 7); g.fill();
+      g.fillStyle = '#e3cf9c'; g.beginPath(); g.arc(wx, wy, 7, 0, 7); g.fill();
+      g.strokeStyle = '#b89a5c'; g.lineWidth = .8; g.beginPath();
+      for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; g.moveTo(wx + Math.cos(a) * 3, wy + Math.sin(a) * 3); g.lineTo(wx + Math.cos(a) * 7, wy + Math.sin(a) * 7); }
+      g.stroke();
+      g.fillStyle = '#c9a96a'; g.beginPath(); g.arc(wx, wy, 2.6, 0, 7); g.fill();
+    },
+    soup(bd, g, w, h) {
+      // Joe's Soup Kitchen: a community kitchen where volunteers serve free meals to anyone who needs one.
+      // Whitewashed walls, the serving hatch's shutter rolled up under a blue fascia; a tin roof with the kitchen's
+      // extractor and a hand-painted sign.
+      faces(bd, '#efece4', .8, .95, .86, 1);
+      bd.floors = 2; bd.lineColor = 'rgba(60,70,90,.14)';
+      bd.bands = [{ f0: .14, f1: .42, colors: ['#f3cf86', '#d6cfc0'], sw: 12 }, { f0: .48, f1: .58, colors: ['#3b6ea5'], sw: w }];
+      const { rx, ry, rw, rh, cx } = shopRoof(g, bd, w, h, 5, ['#3b6ea5'], '#b9c0c6', '#9aa2aa');
+      g.strokeStyle = 'rgba(60,70,80,.18)'; g.lineWidth = 1; g.beginPath();   // corrugated tin
+      for (let k = ry + 2; k < ry + rh; k += 3) { g.moveTo(rx + 2, k); g.lineTo(rx + rw - 2, k); }
+      g.stroke();
+      // The hand-painted sign, then the kitchen's two extractors and a water tank behind it
+      const bw = rw - 8, bh = 46, by = ry + 8;
+      g.fillStyle = 'rgba(0,0,0,.18)'; rr(g, cx - bw / 2 + 1.5, by + 2, bw, bh, 4); g.fill();
+      g.fillStyle = '#fbfaf5'; rr(g, cx - bw / 2, by, bw, bh, 4); g.fill();
+      g.strokeStyle = '#3b6ea5'; g.lineWidth = 1.2; rr(g, cx - bw / 2 + 3, by + 3, bw - 6, bh - 6, 3); g.stroke();
+      g.fillStyle = '#23426b'; fitText(g, 'Joe’s', cx, by + 18, bw - 10, 800, 26, DISPLAY);
+      g.fillStyle = '#3b6ea5'; fitText(g, 'SOUP KITCHEN', cx, by + 35, bw - 10, 800, 11, UI);
+      const ey = by + bh + (ry + rh - by - bh) / 2;
+      for (const ex of [cx - 22, cx]) {
+        g.fillStyle = 'rgba(0,0,0,.18)'; g.beginPath(); g.arc(ex + 1.5, ey + 1.5, 8, 0, 7); g.fill();
+        g.fillStyle = '#d5dade'; g.beginPath(); g.arc(ex, ey, 8, 0, 7); g.fill();
+        g.strokeStyle = '#8c959e'; g.lineWidth = 1; g.beginPath(); g.arc(ex, ey, 6, 0, 7);
+        for (let k = 0; k < 4; k++) { const a = k * Math.PI / 4, c = Math.cos(a) * 6, d = Math.sin(a) * 6; g.moveTo(ex - c, ey - d); g.lineTo(ex + c, ey + d); }
+        g.stroke();
+      }
+      roofBox(g, cx + 16, ey - 11, 16, 22, '#d0d5da');
+    },
+    pizza(bd, g, w, h) {
+      // Pizza 3Ps: a brick pizzeria with a wood-fired oven. The window glows from the oven under a charcoal-and-cream
+      // awning; on the roof, the name board, a whole pepperoni pizza on its peel and the oven's chimney.
+      faces(bd, '#a9553b', .8, .95, .86, 1);
+      bd.floors = 2; bd.lineColor = 'rgba(255,230,200,.14)';
+      bd.bands = [{ f0: .1, f1: .46, colors: ['#ffb85c', '#f29a3e'], sw: 14 }, { f0: .52, f1: .74, colors: ['#2f2f33', '#f4ecd8'], sw: 7 }];
+      const N = 6, st = bd.street, side = st === 'w' || st === 'e';
+      const rx = st === 'w' ? N : 0, ry = st === 'n' ? N : 0, rw = w - (side ? N : 0), rh = h - (side ? 0 : N), cx = rx + rw / 2;
+      g.fillStyle = '#d8cdb9'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = '#8f4630'; g.lineWidth = 3; g.strokeRect(1.5, 1.5, w - 3, h - 3);   // brick parapet
+      const L = side ? h : w, n = Math.round(L / 7), s = L / n;   // the awning's edge along the street
+      for (let i = 0; i < n; i++) {
+        g.fillStyle = i % 2 ? '#f4ecd8' : '#2f2f33';
+        if (side) g.fillRect(st === 'w' ? 0 : w - N, i * s, N, s + .4); else g.fillRect(i * s, st === 'n' ? 0 : h - N, s + .4, N);
+      }
+      // The name board
+      const bw = rw - 8, bh = 46, by = ry + 8;
+      g.fillStyle = 'rgba(0,0,0,.2)'; rr(g, cx - bw / 2 + 1.5, by + 2, bw, bh, 5); g.fill();
+      g.fillStyle = '#2f2f33'; rr(g, cx - bw / 2, by, bw, bh, 5); g.fill();
+      g.strokeStyle = '#f2b705'; g.lineWidth = 1.2; rr(g, cx - bw / 2 + 3, by + 3, bw - 6, bh - 6, 3); g.stroke();
+      g.fillStyle = '#fbf3e4'; fitText(g, 'Pizza 3Ps', cx, by + 18, bw - 8, 800, 26, DISPLAY);
+      g.fillStyle = '#f29a3e'; fitText(g, 'WOOD-FIRED', cx, by + 35, bw - 12, 800, 11, UI);
+      // The oven's chimney in the back corner, sooty on top
+      const chx = st === 'e' ? rx + 5 : rx + rw - 16, chy = ry + rh - 16;
+      roofBox(g, chx, chy, 11, 11, '#8f4630');
+      g.fillStyle = '#2a2522'; g.beginPath(); g.arc(chx + 5.5, chy + 5.5, 3, 0, 7); g.fill();
+      // The pizza on its peel, the handle pointing away from the street
+      const pr = Math.min(rw - 22, ry + rh - by - bh - 14) / 2, px = cx, py = by + bh + 7 + pr;
+      const hx = st === 'e' ? -1 : st === 'w' ? 1 : 0, hy = st === 's' ? -1 : st === 'n' ? 1 : 0;
+      g.fillStyle = 'rgba(40,25,10,.25)'; g.beginPath(); g.arc(px + 2, py + 3, pr + 3, 0, 7); g.fill();
+      g.strokeStyle = '#a77a4a'; g.lineWidth = 6; g.lineCap = 'round'; g.beginPath();
+      g.moveTo(px, py); g.lineTo(px + hx * (pr + 16), py + hy * (pr + 16)); g.stroke(); g.lineCap = 'butt';
+      g.fillStyle = '#c99a62'; g.beginPath(); g.arc(px, py, pr + 3, 0, 7); g.fill();   // the peel
+      g.fillStyle = '#d9974a'; g.beginPath(); g.arc(px, py, pr, 0, 7); g.fill();       // crust
+      g.fillStyle = '#c8402c'; g.beginPath(); g.arc(px, py, pr - 3.5, 0, 7); g.fill(); // sauce
+      g.fillStyle = '#f3d17a'; g.beginPath(); g.arc(px, py, pr - 5, 0, 7); g.fill();   // cheese
+      g.fillStyle = 'rgba(70,35,15,.45)';   // charring round the crust
+      for (let k = 0; k < 9; k++) { const a = k * .7 + .3; g.beginPath(); g.arc(px + Math.cos(a) * (pr - 1.6), py + Math.sin(a) * (pr - 1.6), 1.1, 0, 7); g.fill(); }
+      g.strokeStyle = 'rgba(150,80,30,.35)'; g.lineWidth = 1; g.beginPath();   // cut into six slices
+      for (let k = 0; k < 3; k++) { const a = k * Math.PI / 3 + .2, c = Math.cos(a) * (pr - 1), d = Math.sin(a) * (pr - 1); g.moveTo(px - c, py - d); g.lineTo(px + c, py + d); }
+      g.stroke();
+      const q = pr - 9, pep = pr * .15;
+      g.fillStyle = '#b3352a';
+      for (const [u, v] of [[-.55, -.35], [.15, -.7], [.65, -.2], [-.1, .05], [.45, .55], [-.6, .45], [.05, .8], [-.25, -.85]]) { g.beginPath(); g.arc(px + u * q, py + v * q, pep, 0, 7); g.fill(); }
+      g.fillStyle = '#3f8a3a';
+      for (const [u, v] of [[.35, -.15], [-.35, .3], [.25, .25]]) { g.beginPath(); g.ellipse(px + u * q, py + v * q, pep * .9, pep * .5, u * 3, 0, 7); g.fill(); }
+    },
+    gym(bd, g, w, h) {
+      // Jerald's Gym: a low charcoal warehouse with a glass front showing the lit workout floor, under an orange
+      // stripe. On its metal roof, a giant dumbbell by the street, the name board, skylights over the gym floor and
+      // the air-conditioning plant.
+      faces(bd, '#3d424b', .8, .95, .86, 1);
+      bd.floors = 2; bd.lineColor = 'rgba(255,255,255,.08)';
+      bd.bands = [{ f0: .1, f1: .66, colors: ['#d6ecf7', '#bcd9ea'], sw: 20 }, { f0: .74, f1: .84, colors: ['#ff7a1a'], sw: 400 }];
+      // Laid out for a street to the west (its only placement)
+      g.fillStyle = '#555b64'; g.fillRect(0, 0, w, h);   // standing-seam metal roof
+      g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 1; g.beginPath();
+      for (let k = 3; k < h; k += 4) { g.moveTo(0, k); g.lineTo(w, k); }
+      g.stroke();
+      g.strokeStyle = '#2f343b'; g.lineWidth = 3; g.strokeRect(1.5, 1.5, w - 3, h - 3);
+      g.fillStyle = '#ff7a1a'; g.fillRect(0, 0, 6, h);   // orange fascia along the street
+      // The dumbbell: chrome bar, knurled grip, and stacked black plates at each end
+      const dx = 50, dy = h / 2;
+      g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(dx - 30 + 3, dy - 22 + 4, 60, 44);
+      g.fillStyle = '#c9ced6'; g.fillRect(dx - 32, dy - 2.5, 64, 5);
+      g.fillStyle = 'rgba(0,0,0,.25)'; for (let k = -9; k <= 9; k += 2) g.fillRect(dx + k, dy - 2.5, 1, 5);
+      for (const sgn of [-1, 1]) {
+        for (const [o, pw, ph, c] of [[26, 8, 44, '#22262d'], [19, 7, 36, '#2c3139'], [13, 4, 14, '#9aa1ab']]) {
+          g.fillStyle = c; rr(g, dx + sgn * o - pw / 2, dy - ph / 2, pw, ph, 2); g.fill();
+        }
+        g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(dx + sgn * 26 - 3, dy - 21, 1.5, 42);
+      }
+      // The name board
+      const bx = 94, bw = w - bx - 10, by = 10, bh = 44;
+      g.fillStyle = 'rgba(0,0,0,.25)'; rr(g, bx + 2, by + 3, bw, bh, 5); g.fill();
+      g.fillStyle = '#22262d'; rr(g, bx, by, bw, bh, 5); g.fill();
+      g.strokeStyle = '#ff7a1a'; g.lineWidth = 1.5; rr(g, bx + 3, by + 3, bw - 6, bh - 6, 3); g.stroke();
+      g.fillStyle = '#fff'; fitText(g, 'JERALD’S GYM', bx + bw / 2, by + 18, bw - 16, 800, 22, DISPLAY);
+      g.fillStyle = '#ff7a1a'; fitText(g, 'S T R E N G T H  ·  C A R D I O  ·  2 4 / 7', bx + bw / 2, by + 34, bw - 20, 800, 7, UI);
+      // Skylights over the gym floor, then the air-conditioning units
+      for (let k = 0; k < 4; k++) {
+        const sx = bx + k * 28, sy = by + bh + 10;
+        g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(sx + 2, sy + 2, 22, 24);
+        g.fillStyle = '#9fb4c4'; g.fillRect(sx, sy, 22, 24);
+        g.fillStyle = '#cfe2ee'; g.fillRect(sx + 2, sy + 2, 18, 9); g.fillRect(sx + 2, sy + 13, 18, 9);
+      }
+      for (const ux of [bx + 116, bx + 132]) {
+        roofBox(g, ux, by + bh + 12, 14, 20, '#c3c8ce');
+        g.strokeStyle = '#7d858e'; g.lineWidth = 1; g.beginPath(); g.arc(ux + 7, by + bh + 22, 5, 0, 7); g.stroke();
+      }
+    },
   };
+  // A shop's flat roof: its colour and parapet, with a strip N wide along the street edge (an awning or fascia)
+  // striped in `stripes`. Returns the rest of the roof (rx, ry, rw, rh) and its middle across (cx).
+  function shopRoof(g, bd, w, h, N, stripes, fill, edge) {
+    const st = bd.street, side = st === 'w' || st === 'e';
+    g.fillStyle = fill; g.fillRect(0, 0, w, h);
+    g.strokeStyle = edge; g.lineWidth = 2; g.strokeRect(1, 1, w - 2, h - 2);
+    const L = side ? h : w, n = Math.max(1, Math.round(L / 6)), s = L / n;
+    for (let i = 0; i < n; i++) {
+      g.fillStyle = stripes[i % stripes.length];
+      if (side) g.fillRect(st === 'w' ? 0 : w - N, i * s, N, s + .4); else g.fillRect(i * s, st === 'n' ? 0 : h - N, s + .4, N);
+    }
+    const rx = st === 'w' ? N : 0, ry = st === 'n' ? N : 0, rw = w - (side ? N : 0), rh = h - (side ? 0 : N);
+    return { rx, ry, rw, rh, cx: rx + rw / 2 };
+  }
   // Text that shrinks to fit a width (for signs drawn into roof images)
   function fitText(g, text, x, y, maxW, weight, size, family) {
     g.font = `${weight} ${size}px ${family}`;
