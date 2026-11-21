@@ -1243,6 +1243,10 @@
   // Set each frame (world units): storey lines are kept at least lineGap apart on screen, and mullions and fins
   // are left off walls less than finMin thick. On a wall seen nearly edge-on they would only blur into a smudge.
   let lineGap = 1, finMin = 1;
+  // Also set each frame: the visible part of the world (world units, with a little slack for line widths and
+  // anti-aliasing). Buildings, tree canopies and Revenue House's parts wholly outside it aren't drawn: about half
+  // the buildings in the blocks near the screen never reach it, and drawing them anyway cost as much as the rest.
+  let viewL = 0, viewT = 0, viewR = 0, viewB = 0;
   // Within a block, buildings further from the camera go first: nearer ones lean away from the camera, over them.
   // A tower and its podium share a centre, so the lower one goes first.
   let depthX = 0, depthY = 0;
@@ -1252,6 +1256,8 @@
     // Walls run from height b.base (a tower on a podium) up to b.H, leaning away from the camera
     const mx = b.x + b.w / 2 - ccx, my = b.y + b.h / 2 - ccy, k0 = b.base / 950, k1 = b.H / 950;
     const x = b.x + mx * k0, y = b.y + my * k0, ox = mx * (k1 - k0), oy = my * (k1 - k0), { w, h } = b;
+    // Off screen? Everything below lies between the footprint (x, y) and the roof (x + ox, y + oy).
+    if (Math.min(x, x + ox) > viewR || Math.max(x, x + ox) + w < viewL || Math.min(y, y + oy) > viewB || Math.max(y, y + oy) + h < viewT) return;
     ctx.fillStyle = b.wall; ctx.fillRect(x, y, w, h);
     // Only the two walls facing the camera can be seen (one along x at height fy, one along y at fx); the roof covers the others.
     // Shophouse rows paint each unit's front its own colour.
@@ -1307,6 +1313,9 @@
   function prism(pts, cx0, cy0, h0, h1, ccx, ccy, wall, roofFill, o = {}) {
     const k0 = h0 / 950, k1 = h1 / 950, dx = cx0 - ccx, dy = cy0 - ccy;
     const ax = dx * k0, ay = dy * k0, bx = dx * k1, by = dy * k1, n = pts.length, ex = bx - ax, ey = by - ay;
+    // Off screen? The walls, lines and roof all lie between the plan raised to h0 and to h1.
+    const bb = pts.bb || (pts.bb = bounds(pts));
+    if (bb[0] + Math.min(ax, bx) > viewR || bb[2] + Math.max(ax, bx) < viewL || bb[1] + Math.min(ay, by) > viewB || bb[3] + Math.max(ay, by) < viewT) return { bx, by };
     // Each wall's colour, lit from the bottom of the screen (worked out once per plan and colour)
     const lit = pts.lit || (pts.lit = {}), shades = lit[wall] || (lit[wall] = pts.map(([x1, y1], i) => {
       const [x2, y2] = pts[(i + 1) % n], nx = y2 - y1, ny = x1 - x2;
@@ -1355,16 +1364,27 @@
       ctx.fillStyle = '#8fbf72'; ctx.beginPath(); ctx.arc(gx + pod.bx, gy + pod.by, r, 0, 7); ctx.fill();
       ctx.fillStyle = '#6fa457'; ctx.beginPath(); ctx.arc(gx + pod.bx - r * .25, gy + pod.by - r * .25, r * .5, 0, 7); ctx.fill();
     }
-    ctx.fillStyle = INK; ctx.font = `800 15px ${DISPLAY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('REVENUE HOUSE', rh.label[0] + pod.bx, rh.label[1] + pod.by);
+    const lx = rh.label[0] + pod.bx, ly = rh.label[1] + pod.by, lw = textW(`800 15px ${DISPLAY}`, 'REVENUE HOUSE') / 2;
+    if (lx + lw > viewL && lx - lw < viewR && ly + 15 > viewT && ly - 15 < viewB) {   // the name is often off screen when the tower isn't
+      ctx.fillStyle = INK; ctx.font = `800 15px ${DISPLAY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('REVENUE HOUSE', lx, ly);
+    }
     const frame = () => prism(rh.slab, tcx, tcy, 34, rh.GLASS_H, ccx, ccy, '#a4adb7', null, { storeys: 8, storeyColor: 'rgba(255,255,255,.18)' });
     const glass = () => { for (const [pts, h0, h1] of rh.tiers) prism(pts, tcx, tcy, h0, h1, ccx, ccy, '#4f8fa3', '#cdd9dc', { storeys: Math.round((h1 - h0) / 9), fins: 7, finColor: 'rgba(210,240,250,.22)' }); };
     if ((ccx - tcx) + (ccy - tcy) > 0) { frame(); glass(); } else { glass(); frame(); }   // camera on the glass side?
     prism(rh.slab, tcx, tcy, rh.GLASS_H, rh.SLAB_H, ccx, ccy, '#a4adb7', '#c6ccd2', { storeys: 2, storeyColor: 'rgba(255,255,255,.18)' });
   }
 
+  // A ground plan's bounding box: [left, top, right, bottom]
+  function bounds(pts) {
+    let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+    for (const [x, y] of pts) { l = Math.min(l, x); t = Math.min(t, y); r = Math.max(r, x); b = Math.max(b, y); }
+    return [l, t, r, b];
+  }
+
   function drawTreeCanopy(tr, ccx, ccy) {
     const k = tr.H / 950, x = tr.x + (tr.x - ccx) * k, y = tr.y + (tr.y - ccy) * k;
+    if (x - tr.r > viewR || x + tr.r < viewL || y - tr.r > viewB || y + tr.r < viewT) return;   // off screen
     ctx.drawImage(TREE_IMG, x - tr.r, y - tr.r, tr.r * 2, tr.r * 2);
   }
 
@@ -1382,6 +1402,7 @@
     size *= LS;
     const font = `700 ${size}px ${UI}`;
     const w = textW(font, text) + 16 * LS, h = size + 10 * LS;
+    if (x + w / 2 + 1 < viewL || x - w / 2 > viewR || y + h / 2 + 2 < viewT || y - h / 2 > viewB) return;   // off screen (shadow included)
     ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(0,0,0,.18)'; rr(ctx, x - w / 2 + 1, y - h / 2 + 2, w, h, h / 2); ctx.fill();
     ctx.fillStyle = bg; rr(ctx, x - w / 2, y - h / 2, w, h, h / 2); ctx.fill();
@@ -1403,6 +1424,8 @@
     }
     const lh = 18 * k, padX = 12 * k, top = speaker ? 16 * k : 0, w = lay.w, h = lay.lines.length * lh + 16 * k + top;
     const bx = x - w / 2, by = below ? y + 12 * k : y - h - 12 * k;
+    // Off screen? (the shadow, and the tail above or below)
+    if (bx + w + 2 < viewL || bx > viewR || by + h + (below ? 3 : 10 * k) < viewT || by - (below ? 10 * k : 0) > viewB) return;
     ctx.fillStyle = 'rgba(0,0,0,.2)'; rr(ctx, bx + 2, by + 3, w, h, 12 * k); ctx.fill();
     ctx.fillStyle = bg; rr(ctx, bx, by, w, h, 12 * k); ctx.fill();
     ctx.beginPath();
@@ -1434,6 +1457,8 @@
 
     LS = clamp(0.85 / z, 1, 1.7);
     lineGap = (lite >= 2 ? 4 : 2.5) / z; finMin = (lite >= 2 ? 3 : 1.5) / z;   // in screen pixels, converted to world units
+    const slack = 2 + 2 / z;   // world units: more than half the widest line plus a pixel of anti-aliasing
+    viewL = x0 - slack; viewT = y0 - slack; viewR = x0 + vw + slack; viewB = y0 + vh + slack;
     ctx.save(); ctx.scale(z, z); ctx.translate(-x0, -y0);
 
     // Grass beyond the city edge (only where the view reaches past it, tucked a little under the ground's edge so
@@ -1456,8 +1481,10 @@
 
     // Tunnelling works
     for (const c of closures) {
+      // The works fill the road between the two junctions: within T / 2 of the line joining them
       const x = Math.min(nodeX(c.i1), nodeX(c.i2)), y = Math.min(nodeX(c.j1), nodeX(c.j2));
-      if (inView(x, y, Math.abs(nodeX(c.i2) - nodeX(c.i1)), Math.abs(nodeX(c.j2) - nodeX(c.j1)))) drawWorks(c);
+      const r = Math.max(nodeX(c.i1), nodeX(c.i2)) + T / 2, b = Math.max(nodeX(c.j1), nodeX(c.j2)) + T / 2;
+      if (x - T / 2 < viewR && r > viewL && y - T / 2 < viewB && b > viewT) drawWorks(c);
     }
 
     // Pickups
@@ -1471,9 +1498,9 @@
       ctx.beginPath(); ctx.arc(P.x, P.y, CATCH_R, 0, 7); ctx.stroke(); ctx.setLineDash([]);
     }
 
-    // Vehicles
+    // Vehicles (none reaches more than 45 from its middle, shadow included)
     for (const s of suspects) {
-      if (!inView(s.x, s.y, 0, 0)) continue;
+      if (!inView(s.x, s.y, 0, 0, 50)) continue;
       const wob = s.daze > 0 ? Math.sin(t * 30) * .25 : 0;
       drawVehicle(ctx, s.x, s.y, s.a + wob, s.ty.kind, s.ty.color, s.gen ? .75 : 1, false);
     }
@@ -1555,6 +1582,7 @@
     }
     for (const f of floaters) { ctx.globalAlpha = clamp(f.t * 2, 0, 1); pill(f.text, f.x, f.y, '#fff', f.color, 12); ctx.globalAlpha = 1; }
     ctx.restore();
+    viewL = viewT = -Infinity; viewR = viewB = Infinity;   // screen space from here, so labels aren't culled
 
     // ---- Screen space ----
     if (state === 'title') return;
