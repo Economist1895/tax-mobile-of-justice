@@ -594,6 +594,15 @@
     r = row(se, 'e'); takeOver(se, r, 'soup', { ...wide(r), H: 26 });
     // Jerald's Gym in place of the glass slab behind Sylvester & Partners, its glass front facing Revenue House
     takeOver(ne, ne.buildings.find(o => o.kind === 'office'), 'gym', { street: 'w', H: 40 });
+    // Angus' Omelettes (see BUILDING_STYLE.omelette) on the back row of Bethany's block, so every side of it is a shop of note
+    takeOver(se, row(se, 's'), 'omelette', { H: 28 });
+    // The four corners of town are the ways out: manicured lawns with the name and an arrow pointing out of town laid
+    // out in them (see drawBeyond). b.beyond is the way out: (dx, dy), each -1 or 1.
+    for (const [bi, bj] of [[0, 0], [NODES - 2, 0], [0, NODES - 2], [NODES - 2, NODES - 2]]) {
+      const b = at(bi, bj);
+      b.park = false; b.trees = []; b.buildings = [];
+      b.beyond = { dx: bi ? 1 : -1, dy: bj ? 1 : -1 };
+    }
   })();
   // ================= State =================
   let state = 'title', ammo = 0, stacks = [], P, suspects, items, rices, notices, particles, skids, floaters, stamp, bust;
@@ -1271,7 +1280,7 @@
     }
     // Bands across the shopfront, only when the street side faces the camera: Bethany's awning and windows,
     // Shane's display window and underglow, Shaun's noren, the chambers' colonnade, Ray's counter and awning,
-    // Joe's serving hatch, Pizza 3Ps' oven-lit window and the gym's glass front. Each band is striped in
+    // Joe's serving hatch, Pizza 3Ps' oven-lit window, the gym's glass front and Angus' teal awning. Each band is striped in
     // its colours, one fill per colour.
     const st = b.street;
     if (b.bands && (st === 'n' ? oy > 0 : st === 's' ? oy <= 0 : st === 'w' ? ox > 0 : ox <= 0)) {
@@ -1842,6 +1851,7 @@
         g.fillStyle = grass; rr(g, b.x + 22, b.y + 22, b.S - 44, b.S - 44, 16); g.fill();
         g.strokeStyle = '#e9dcbf'; g.lineWidth = 10; g.beginPath(); g.ellipse(b.x + b.S / 2, b.y + b.S / 2, b.S * .3, b.S * .22, .3, 0, 7); g.stroke();
       }
+      if (b.beyond) drawBeyond(g, b);
       g.fillStyle = 'rgba(25,30,45,.10)';
       for (const bd of b.buildings) for (const f of [.35, .7, 1]) g.fillRect(bd.x + bd.H * .32 * f, bd.y + bd.H * .32 * f, bd.w, bd.h);
       if (b.rh) for (const [pts, H] of b.rh.shadows) for (const f of [.35, .7, 1]) {
@@ -2231,6 +2241,56 @@
         g.strokeStyle = '#7d858e'; g.lineWidth = 1; g.beginPath(); g.arc(ux + 7, by + bh + 22, 5, 0, 7); g.stroke();
       }
     },
+    omelette(bd, g, w, h) {
+      // Angus' Omelettes: a cream breakfast diner with a big sunny window under a teal-and-cream awning. On its
+      // roof, along the row: a giant pan with a folded omelette, the name on a teal board and a tray of eggs with
+      // one gone. Laid out for a row along a north or south street (its only placement is a back row, to the south).
+      faces(bd, '#f6ecd2', .8, .95, .86, 1);
+      bd.floors = 2; bd.lineColor = 'rgba(90,70,40,.14)';
+      bd.bands = [{ f0: .1, f1: .5, colors: ['#fff0c2', '#f5dc9b'], sw: 14 }, { f0: .56, f1: .76, colors: ['#2a8c8c', '#fbf6ea'], sw: 7 }];
+      const { rx, ry, rh } = shopRoof(g, bd, w, h, 6, ['#2a8c8c', '#fbf6ea'], '#e9e1cf', '#c9bfa8');
+      const my = ry + rh / 2;
+      // The pan: its shadow, the handle reaching back from the street, then the iron rim and base
+      const pr = Math.min(28, rh / 2 - 5), px = rx + 26 + pr, ha = bd.street === 'n' ? 2.4 : -2.4;
+      g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.arc(px + 2.5, my + 3, pr, 0, 7); g.fill();
+      g.strokeStyle = '#1f1f22'; g.lineWidth = 5; g.lineCap = 'round'; g.beginPath();
+      g.moveTo(px + Math.cos(ha) * pr, my + Math.sin(ha) * pr); g.lineTo(px + Math.cos(ha) * (pr + 14), my + Math.sin(ha) * (pr + 14)); g.stroke(); g.lineCap = 'butt';
+      g.fillStyle = '#2b2b2e'; g.beginPath(); g.arc(px, my, pr, 0, 7); g.fill();
+      g.fillStyle = '#414146'; g.beginPath(); g.arc(px, my, pr - 2.5, 0, 7); g.fill();
+      // The omelette, folded in half: golden, browned in patches, flecked with chives and tomato
+      const r = pr - 5;
+      g.save(); g.translate(px, my); g.rotate(-.5); g.translate(0, -r * .42);
+      g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.arc(1.2, 1.6, r, 0, Math.PI); g.closePath(); g.fill();
+      g.fillStyle = '#f6cf4a'; g.beginPath(); g.arc(0, 0, r, 0, Math.PI); g.closePath(); g.fill();
+      g.save(); g.clip();
+      g.fillStyle = 'rgba(190,120,30,.3)';
+      for (const [u, v, s] of [[-.5, .35, .28], [.2, .55, .22], [.55, .2, .18], [-.1, .15, .14]]) { g.beginPath(); g.arc(u * r, v * r, s * r, 0, 7); g.fill(); }
+      g.fillStyle = '#4f9a3a';
+      for (const [u, v, a] of [[-.6, .2, .4], [-.25, .5, -.7], [.1, .25, 1.1], [.4, .55, .2], [.65, .15, -.3], [-.05, .75, .6]]) { g.save(); g.translate(u * r, v * r); g.rotate(a); g.fillRect(-2, -.7, 4, 1.4); g.restore(); }
+      g.fillStyle = '#d9472f';
+      for (const [u, v] of [[-.35, .3], [.3, .4], [.05, .6]]) { g.beginPath(); g.arc(u * r, v * r, 1.5, 0, 7); g.fill(); }
+      g.restore();
+      g.strokeStyle = '#fbe58a'; g.lineWidth = 2; g.beginPath(); g.moveTo(-r, 0); g.lineTo(r, 0); g.stroke();   // the fold
+      g.restore();
+      // The egg tray, three by two, white and brown eggs, one already in the pan
+      const cw = 13, tw = cw * 3 + 4, th = cw * 2 + 4, tx = w - tw - 8, ty = my - th / 2;
+      g.fillStyle = 'rgba(0,0,0,.2)'; rr(g, tx + 2, ty + 2.5, tw, th, 3); g.fill();
+      g.fillStyle = '#cdbf9f'; rr(g, tx, ty, tw, th, 3); g.fill();
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
+        const ex = tx + 2 + cw * i + cw / 2, ey = ty + 2 + cw * j + cw / 2;
+        g.fillStyle = '#b3a483'; g.beginPath(); g.arc(ex, ey, cw / 2 - 1, 0, 7); g.fill();   // the cup
+        if (i === 2 && j === 0) continue;
+        g.fillStyle = (i + j) % 2 ? '#e4bf93' : '#fbf6ec'; g.beginPath(); g.ellipse(ex, ey, cw / 2 - 2, cw / 2 - 1.2, .5, 0, 7); g.fill();
+        g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.arc(ex - 1.4, ey - 1.6, 1.4, 0, 7); g.fill();
+      }
+      // The name board, between the two
+      const bx = px + pr + 10, bw = tx - 8 - bx, bh = rh - 10, by = my - bh / 2;
+      g.fillStyle = 'rgba(0,0,0,.2)'; rr(g, bx + 1.5, by + 2, bw, bh, 5); g.fill();
+      g.fillStyle = '#1f6f73'; rr(g, bx, by, bw, bh, 5); g.fill();
+      g.strokeStyle = '#f6c445'; g.lineWidth = 1.2; rr(g, bx + 3, by + 3, bw - 6, bh - 6, 3); g.stroke();
+      g.fillStyle = '#fbf6ea'; fitText(g, 'Angus’', bx + bw / 2, my - 4.5, bw - 12, 800, 23, DISPLAY);
+      g.fillStyle = '#f6c445'; fitText(g, 'O M E L E T T E S', bx + bw / 2, my + 12, bw - 16, 800, 10, UI);
+    },
   };
   // A shop's flat roof: its colour and parapet, with a strip N wide along the street edge (an awning or fascia)
   // striped in `stripes`. Returns the rest of the roof (rx, ry, rw, rh) and its middle across (cx).
@@ -2263,6 +2323,56 @@
     g.fillStyle = 'rgba(25,30,45,.2)'; g.fillRect(fx + 1, fy - 2, 14, 8);
     g.fillStyle = '#d23a2f'; g.fillRect(fx, fy - 4, 13, 3.5); g.fillStyle = '#fff'; g.fillRect(fx, fy - .5, 13, 3.5);
     g.fillStyle = '#8a929c'; g.beginPath(); g.arc(fx, fy, 2, 0, 7); g.fill();
+  }
+  // A corner of town (see buildCity), laid out like a bedding display in a formal lawn, seen from the air: broad
+  // mowing stripes, a clipped box hedge round the edge, and planted flat into the turf, each cut out of the grass
+  // with a thin strip of soil, the name in white alyssum on the town side and an arrow of marigolds pointing out
+  // to the corner. Painted into the ground, and over again once web fonts have loaded, for the lettering.
+  function drawBeyond(g, b) {
+    const { dx, dy } = b.beyond, L = b.S - 44, cx = L / 2, cy = L / 2;
+    // Drawn into a lawn-sized canvas first, so the flowers can be planted inside their shapes
+    const c = makeCanvas(L, L), l = c.getContext('2d'), R = mulberry32(b.x * 7 + b.y);
+    // (u, v): u along the way out, v across it
+    const k = Math.SQRT1_2, uv = ([u, v]) => [cx + (u * dx - v * dy) * k, cy + (u * dy + v * dx) * k];
+    // The lawn, mown up and down in broad stripes
+    l.fillStyle = makePattern('#78ab62', 900, .08, l); rr(l, 0, 0, L, L, 16); l.fill();
+    l.save(); l.clip();
+    for (let y = 0; y < L; y += 36) { l.fillStyle = 'rgba(255,255,255,.07)'; l.fillRect(0, y, L, 18); l.fillStyle = 'rgba(20,50,10,.05)'; l.fillRect(0, y + 18, L, 18); }
+    l.restore();
+    // The box hedge, and the soil it's planted in
+    l.strokeStyle = '#6b5238'; l.lineWidth = 12; rr(l, 8, 8, L - 16, L - 16, 11); l.stroke();
+    l.strokeStyle = makePattern('#3d7336', 700, .16, l); l.lineWidth = 9; rr(l, 8, 8, L - 16, L - 16, 11); l.stroke();
+    // A bed: the soil cut round the shape, then the shape filled with leaves and packed with flowers
+    // (one path per colour). shape(ctx, stroke) traces it; [bx, by, bw, bh] bounds where flowers go.
+    l.lineJoin = 'round';
+    const plant = (shape, [bx, by, bw, bh], leaves, flowers, density) => {
+      l.strokeStyle = '#5c4430'; l.lineWidth = 5; shape(l, true);
+      const m = makeCanvas(L, L), mg = m.getContext('2d');
+      shape(mg, false);
+      mg.globalCompositeOperation = 'source-atop';
+      mg.fillStyle = leaves; mg.fillRect(bx, by, bw, bh);
+      const n = Math.round(bw * bh * density);
+      for (const col of flowers) {
+        mg.fillStyle = col; mg.beginPath();
+        for (let i = 0; i < n; i++) { const x = bx + R() * bw, y = by + R() * bh, r = 1.2 + R() * 1.1; mg.moveTo(x + r, y); mg.arc(x, y, r, 0, 7); }
+        mg.fill();
+      }
+      l.drawImage(m, 0, 0);
+    };
+    // The arrow, from just off the middle out to the corner
+    const pts = [[16, -15], [86, -15], [86, -42], [150, 0], [86, 42], [86, 15], [16, 15]].map(uv);
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]), ax = Math.min(...xs), ay = Math.min(...ys);
+    plant((ctx, stroke) => { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); stroke ? ctx.stroke() : ctx.fill(); },
+      [ax, ay, Math.max(...xs) - ax, Math.max(...ys) - ay], '#8a6a1c', ['#e58e17', '#f6b21c', '#f9c844', '#fbd96a'], .05);
+    // The name, on the town side, both lines the same size
+    const tx = cx - dx * 22, ty = cy - dy * 55, LINES = [['Tax and', ty - 21], ['Beyond', ty + 21]];
+    l.font = `800 40px ${UI}`;
+    const size = Math.min(40, 40 * 196 / Math.max(...LINES.map(([s]) => l.measureText(s).width)));
+    plant((ctx, stroke) => {
+      ctx.font = `800 ${size}px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (const [s, y] of LINES) stroke ? ctx.strokeText(s, tx, y) : ctx.fillText(s, tx, y);
+    }, [tx - 104, ty - 48, 208, 96], '#cfd6c2', ['#e9ece2', '#f4f2ec', '#ffffff', '#fdfaf3'], .08);
+    g.drawImage(c, b.x + 22, b.y + 22);
   }
   // Bethany's tables out on the pavement, in front of the awning
   function drawTerrace(g, bd) {
@@ -2314,7 +2424,12 @@
     TREE_IMG = buildTree();
     // Re-draw roof numbers once web fonts have loaded, so they use the right font
     // (and forget text sizes measured with the fallback font)
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { buildBuildingSprites(); MEASURE.clear(); WRAP.clear(); });
+    // and the lettering in the corner lawns, painted over in place
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => {
+      buildBuildingSprites(); MEASURE.clear(); WRAP.clear();
+      const g = GROUND.getContext('2d');
+      for (const b of blocks) if (b.beyond) drawBeyond(g, b);
+    });
   }
 
   // ================= Loop =================
